@@ -1205,6 +1205,7 @@ extension AppFeature {
         case .reminders: return "提醒事项"
         case .accounting: return "记账"
         case .notes: return "笔记"
+        case .systemData: return "系统数据"
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .commandBar: return FeatureStrings.commandBar(language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
@@ -1294,6 +1295,7 @@ extension AppFeature {
         case .reminders: return "查看、筛选和快速添加 macOS 提醒事项。"
         case .accounting: return "记录日常收支，管理分类，查看月度流水与统计。"
         case .notes: return "本地 Markdown 与 Excalidraw 笔记，支持附件、双向链接和属性。"
+        case .systemData: return "查看 macOS 系统数据占用，按安全等级选择并清理缓存、日志等内容。"
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode

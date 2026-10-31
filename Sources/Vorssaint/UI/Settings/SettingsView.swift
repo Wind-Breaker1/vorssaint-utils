@@ -601,6 +601,7 @@ struct SettingsView: View {
         case .quickTools: QuickToolsSettings()
         case .accounting: AccountingSettings()
         case .notes: NotesStorageSettings()
+        case .systemData: SystemDataSettings()
         case .reminders: ReminderSettings()
         case .screenshot: ScreenCaptureSettings()
         case .windowLayout: WindowLayoutSettings()

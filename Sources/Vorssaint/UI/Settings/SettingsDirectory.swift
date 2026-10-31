@@ -113,13 +113,13 @@ enum SettingsDirectory {
             windowsControls: rows(1), utilities: rows(4).filter {
                 !islandPages.contains($0.id) && $0.id != .page(.notchMascot)
             })
-        let personal = byGroup.utilities.filter { [.notes, .reminders, .accounting].contains($0.destination.page) }
+        let personal = byGroup.utilities.filter { [.notes, .reminders, .accounting, .systemData].contains($0.destination.page) }
         let featured = [
             SettingsSidebarSection(id: 0, title: categories.essentials,
                                    items: Array(core.prefix(3)) + island + Array(core.dropFirst(3))),
             SettingsSidebarSection(id: 9, title: hub.groupPersonalTools, items: personal),
             SettingsSidebarSection(id: 4, title: categories.utilities, items: byGroup.utilities.filter {
-                ![.notes, .reminders, .accounting].contains($0.destination.page)
+                ![.notes, .reminders, .accounting, .systemData].contains($0.destination.page)
             }),
             SettingsSidebarSection(id: 6, title: hub.groupSound, items: sound + byGroup.sound),
             SettingsSidebarSection(id: 7, title: hub.groupEnergyDisplay, items: energy),
@@ -423,6 +423,8 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .reminders, title: "提醒事项", icon: "checklist", keywords: ["待办", "提醒事项", "默认列表", "快捷新增"]),
                 SettingsDirectoryItem(page: .notes, title: "笔记", icon: AppFeature.notes.symbolName,
                                       keywords: ["存储目录", "更改目录", "重建笔记索引", "Markdown", "Excalidraw"]),
+                SettingsDirectoryItem(page: .systemData, title: "系统数据", icon: AppFeature.systemData.symbolName,
+                                      keywords: ["System Data", "系统数据", "磁盘占用", "缓存", "日志", "废纸篓"]),
                 SettingsDirectoryItem(page: .screenshot,
                                        title: FeatureStrings.screenshot(language).screenCaptureTitle,
                                        icon: "camera.viewfinder",

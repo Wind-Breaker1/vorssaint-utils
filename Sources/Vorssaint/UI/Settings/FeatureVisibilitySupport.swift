@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, notes, reminders, accounting, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
+    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, notes, reminders, accounting, systemData, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -381,6 +381,7 @@ extension AppFeature {
         case .reminders: return FeatureSettingsDestination(.reminders)
         case .accounting: return FeatureSettingsDestination(.accounting)
         case .notes: return FeatureSettingsDestination(.notes)
+        case .systemData: return FeatureSettingsDestination(.systemData)
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
         case .commandBar: return FeatureSettingsDestination(.commandBar)
@@ -424,6 +425,7 @@ enum FeatureVisibilitySupport {
                                   .cameraPreview, .wallpaper, .scratchpad, .cleaningMode]
         case .accounting: return [.accounting]
         case .notes: return [.notes]
+        case .systemData: return [.systemData]
         case .reminders: return [.reminders]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]

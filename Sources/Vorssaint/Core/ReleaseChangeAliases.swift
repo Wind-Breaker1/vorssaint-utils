@@ -62,6 +62,7 @@ enum ReleaseChangeAliases {
         case .accounting: return ["记账", "accounting", "ledger"]
         case .reminders: return ["提醒事项", "待办", "reminders"]
         case .notes: return ["notes", "markdown", "excalidraw", "笔记"]
+        case .systemData: return ["system data", "storage cleanup", "系统数据"]
         case .switcher: return ["window switcher", "app switcher", "switcher"]
         case .dockPreview: return ["dock preview", "dock previews"]
         case .dockClick: return ["dock clicks", "dock click", "click the dock icon", "dock icon", "dock actions"]

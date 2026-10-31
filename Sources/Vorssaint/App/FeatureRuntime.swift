@@ -405,6 +405,9 @@ final class FeatureRuntime: ObservableObject {
                 AppDelegate.workspaceNoteWindow = nil
             }
         },
+        .systemData: {
+            if !AppFeature.systemData.isAvailable { SystemDataService.stopIfLoaded() }
+        },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {
