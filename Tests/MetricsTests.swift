@@ -82,7 +82,6 @@ struct MetricsTests {
                 UpdateFeatureTests.run(suite)
                 LaunchAtLoginSettingsTests.run(suite)
                 PostUpdateStatusItemRecoveryTests.run(suite)
-                UpdateAdminInstallContract.run(suite)
                 UpdateHighlightsTests.run(suite)
                 UpdateIntroFlowTests.run(suite)
                 ReleaseDigestTests.run(suite)

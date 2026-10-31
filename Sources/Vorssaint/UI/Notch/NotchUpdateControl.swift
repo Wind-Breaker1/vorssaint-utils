@@ -3,7 +3,7 @@
 
 import SwiftUI
 
-/// The same offer and progress as the menu panel, kept inside the island's
+/// The same upstream release offer as the menu panel, kept inside the island's
 /// existing header so it cannot displace or resize the active tool.
 struct NotchUpdateControl: View {
     @ObservedObject private var updates = UpdateService.shared
@@ -21,7 +21,7 @@ struct NotchUpdateControl: View {
                     if compact {
                         Image(systemName: "arrow.down.circle.fill")
                     } else {
-                        Label(l10n.s.updateBannerAction, systemImage: "arrow.down.circle.fill")
+                        Label(l10n.s.tabReleaseNotes, systemImage: "arrow.down.circle.fill")
                     }
                 }
                 .font(.system(size: 11, weight: .semibold))
@@ -34,33 +34,10 @@ struct NotchUpdateControl: View {
             .fixedSize()
             .help(title)
             .accessibilityLabel(title)
-            .accessibilityHint(l10n.s.updateBannerAction)
-        case let .downloading(progress):
-            progressIndicator(title: l10n.s.updateDownloading, fraction: progress)
-        case .installing:
-            progressIndicator(title: l10n.s.updateInstalling)
+            .accessibilityHint(l10n.s.tabReleaseNotes)
         default:
             EmptyView()
         }
     }
 
-    private func progressIndicator(title: String, fraction: Double? = nil) -> some View {
-        HStack(spacing: 5) {
-            ProgressView().controlSize(.small)
-            if !compact {
-                if let fraction {
-                    Text(fraction, format: .percent.precision(.fractionLength(0)))
-                        .monospacedDigit()
-                } else {
-                    Text(title).lineLimit(1).truncationMode(.tail)
-                }
-            }
-        }
-        .font(.system(size: 10, weight: .medium))
-        .frame(maxWidth: compact ? nil : 110)
-        .help(title)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(fraction.map { $0.formatted(.percent.precision(.fractionLength(0))) } ?? "")
-    }
 }

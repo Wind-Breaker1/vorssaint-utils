@@ -13,6 +13,10 @@ import VMStatisticsCompat
 
 enum UpdateFeatureTests {
     static func run(_ suite: TestSuite) {
+        func shellQuote(_ value: String) -> String {
+            "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }
+
         suite.expect(BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
                                                           previousVersion: "3.4.0-beta.6")
                     && BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0",
@@ -213,50 +217,6 @@ enum UpdateFeatureTests {
             liveEntries: [LiveSystemShortcut(id: 27, shortcut: .switcherWindowDefault, enabled: true)],
             symbolicHotKeys: nil, role: .switcher),
                "the native exception stays scoped to the corresponding switcher action")
-
-        suite.expect(UpdateInstallerSupport.progressStepAdvanced(from: nil, to: 0.004),
-               "the first known download fraction always publishes")
-        suite.expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.011, to: 0.019),
-               "fractions inside the same percent stay quiet")
-        suite.expect(UpdateInstallerSupport.progressStepAdvanced(from: 0.019, to: 0.021),
-               "crossing into the next percent publishes")
-        suite.expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.5, to: 0.5),
-               "an unchanged fraction stays quiet")
-
-        let updateCeiling = UpdateInstallerSupport.downloadCeilingBytes
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 9_638_011) == 9_638_011,
-               "a download stops at the size the release advertises")
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: nil) == updateCeiling,
-               "an asset with no size still stops at the ceiling")
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 0) == updateCeiling,
-               "a zero size is not a limit of zero")
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: updateCeiling + 1) == updateCeiling,
-               "an advertised size beyond the ceiling cannot raise it")
-
-        suite.expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                       receivedBytes: 9_638_011,
-                                                       expectedBytes: 9_638_011),
-               "a complete asset download is handed to the installer")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 404,
-                                                        receivedBytes: 1_200,
-                                                        expectedBytes: 9_638_011),
-               "an error page is refused whatever it contains")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                        receivedBytes: 4_000_000,
-                                                        expectedBytes: 9_638_011),
-               "a truncated body is refused")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                        receivedBytes: 0,
-                                                        expectedBytes: nil),
-               "an empty body is refused even with no advertised size")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                        receivedBytes: updateCeiling + 1,
-                                                        expectedBytes: nil),
-               "a body past the ceiling is refused with no advertised size")
-        suite.expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                       receivedBytes: 9_638_011,
-                                                       expectedBytes: nil),
-               "a plausible body with no advertised size is accepted")
 
         // The showcase loader is a @StateObject, so it can be released without
         // `.onDisappear` running. Its session holds the download delegate, and
@@ -894,15 +854,6 @@ enum UpdateFeatureTests {
                 && verticalPlacement.frame.maxY == 472,
                "vertical avoidance moves settings below the panel with the standard gap")
 
-        suite.expect(UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-copy"),
-               "a copy failure retries through the admin prompt")
-        suite.expect(UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-swap"),
-               "a swap failure retries through the admin prompt")
-        suite.expect(!UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-verify"),
-               "a verification failure is not a permission problem")
-        suite.expect(!UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: nil),
-               "no remembered failure means the normal path")
-
         let adminSource = AdminShell.appleScriptSource(
             command: #"printf "quoted" \ path"#,
             prompt: #"Approve "update" \ now"#)
@@ -945,81 +896,6 @@ enum UpdateFeatureTests {
         suite.expect(!MediaSupport.outputGrew(originalBytes: 0, outputBytes: 12_000),
                "an unknown original size never triggers the grew caption")
 
-        suite.expect(UpdateInstallerSupport.shellSingleQuoted("/Applications/My App.app")
-                   == "'/Applications/My App.app'",
-               "shell quoting wraps paths with spaces")
-        suite.expect(UpdateInstallerSupport.shellSingleQuoted("it's") == "'it'\\''s'",
-               "shell quoting survives embedded single quotes")
-        suite.expect(UpdateInstallerSupport.installFailureCode(fromMarker: "ok\n") == nil,
-               "an ok marker is not a failure")
-        suite.expect(UpdateInstallerSupport.installFailureCode(fromMarker: " fail-verify\n") == "fail-verify",
-               "a fail marker surfaces its step code")
-        suite.expect(UpdateInstallerSupport.installFailureCode(fromMarker: "") == nil,
-               "an empty marker is not a failure")
-        suite.expect(UpdateInstallerSupport.runsFromImmutableLocation(
-                   appPath: "/private/var/folders/ab/xyz/T/AppTranslocation/1F2/d/Vorssaint.app",
-                   volumeIsReadOnly: { _ in false }),
-               "translocated apps are flagged as not updatable in place")
-        suite.expect(UpdateInstallerSupport.runsFromImmutableLocation(appPath: "/Volumes/Vorssaint/Vorssaint.app",
-                                                                volumeIsReadOnly: { _ in true }),
-               "apps on a read-only volume (the DMG) are flagged as not updatable in place")
-        suite.expect(!UpdateInstallerSupport.runsFromImmutableLocation(appPath: "/Volumes/ExternalSSD/Vorssaint.app",
-                                                                 volumeIsReadOnly: { _ in false }),
-               "apps on a writable external volume stay updatable in place")
-        let installerScript = UpdateInstallerSupport.installerScript()
-        for step in ["fail-dmg-verify", "fail-tempdir", "fail-mount", "fail-no-app-in-dmg",
-                     "fail-copy", "fail-version", "fail-verify", "fail-swap", "note ok"] {
-            suite.expect(installerScript.contains(step),
-                   "installer script reports the \(step) step")
-        }
-        suite.expect(installerScript.contains("spctl --status"),
-               "installer script skips Gatekeeper assessment when the user disabled it")
-        let dmgVerification = installerScript.range(of: "DMG_VERIFY_REQ")
-        let dmgMount = installerScript.range(of: "/usr/bin/hdiutil attach")
-        suite.expect(dmgVerification != nil && dmgMount != nil
-               && dmgVerification!.lowerBound < dmgMount!.lowerBound,
-               "installer verifies the release signer before mounting the DMG")
-        suite.expect(installerScript.contains("BUNDLE_VERSION=")
-               && installerScript.contains("\"$BUNDLE_VERSION\" = \"$EXPECTED_VERSION\""),
-               "installer requires the signed app to match the offered release version")
-        suite.expect(installerScript.contains("chown -R"),
-               "an elevated install hands the bundle back to the user")
-        suite.expect(installerScript.contains("update-old.$PID"),
-               "the swap backup name is unique per run so a stale root-owned one never blocks it")
-        suite.expect(installerScript.contains("STAGE=\"$DIR/.$NAME.update-new\""),
-               "the staged copy is hidden so search never lists it under the staging name")
-        suite.expect(installerScript.contains("/bin/rm -rf \"$STAGE\" \"$DEST.update-new\""),
-               "a staged copy left under the old visible name is removed along with the hidden one")
-        suite.expect(installerScript.contains("launchctl asuser"),
-               "installer script relaunches as the user when running as root")
-        suite.expect(installerScript.contains("$RESULT.progress") && installerScript.contains("finalize"),
-               "installer markers stay in a progress file until the run finishes")
-        suite.expect(installerScript.contains("/usr/bin/sudo -n -u \"#$ASUSER\" /bin/sh -c")
-                && installerScript.contains("'/bin/echo \"$1\" > \"$2.progress\"' marker \"$1\" \"$RESULT\"")
-                && installerScript.contains("/usr/bin/sudo -n -u \"#$ASUSER\" /bin/mv -f")
-                && !installerScript.contains("note() { /bin/echo \"$1\" > \"$RESULT.progress\""),
-               "elevated marker writes drop to the original user's credentials")
-        let elevated = UpdateInstallerSupport.elevatedInstallCommand(
-            appPath: "/Applications/Vorssaint.app",
-            dmgPath: "/tmp/Vorssaint-update.dmg",
-            pid: 123,
-            resultPath: "/tmp/result",
-            uid: 501,
-            expectedVersion: "3.3.3")
-        suite.expect(elevated.contains("POSIX::setsid()") && elevated.hasSuffix("&"),
-               "elevated installer leaves this app's session so it outlives the app it replaces")
-        suite.expect(elevated.contains("nohup"),
-               "elevated installer keeps the nohup fallback if setsid is unavailable")
-        suite.expect(elevated.contains("'/Applications/Vorssaint.app'"),
-               "elevated installer passes the app path quoted for the shell")
-        suite.expect(elevated.contains("'3.3.3'"),
-               "elevated installer passes the expected version quoted for the shell")
-        // The script travels inline and is long; it must be spelled once, with
-        // both the setsid attempt and the fallback reusing the same "$@".
-        suite.expect(elevated.components(separatedBy: "DMG_VERIFY_REQ=").count == 2
-               && elevated.components(separatedBy: "\"$@\"").count == 3,
-               "elevated installer names its arguments once and reuses them for the fallback")
-
         // The fallback branch has to be chosen on whether perl is there, never
         // on an exit code: perl execs the payload, so the status the shell sees
         // is the payload's own. Every `exit 1` inside the installer script would
@@ -1033,7 +909,7 @@ enum UpdateFeatureTests {
             .write(to: detachPayload, atomically: true, encoding: .utf8)
         let detachCommand = DetachedProcess.detachedShellCommand(
             quotedArgv: ["/bin/sh", detachPayload.path, detachLedger.path]
-                .map(UpdateInstallerSupport.shellSingleQuoted)
+                .map(shellQuote)
                 .joined(separator: " "))
         let foregroundDetachCommand = String(detachCommand.dropLast(2))
         let detachResult = BoundedProcessRunner.run(
@@ -1080,7 +956,7 @@ enum UpdateFeatureTests {
         do {
             let probe = "{ /bin/echo leaked >&\(holderDescriptor); } 2>/dev/null; INHERITED=$?; "
                 + "{ /bin/echo stdio; } 2>/dev/null; STDIO=$?; "
-                + "/bin/echo \"$INHERITED $STDIO\" > \(UpdateInstallerSupport.shellSingleQuoted(fdReport.path))"
+                + "/bin/echo \"$INHERITED $STDIO\" > \(shellQuote(fdReport.path))"
             let child = try DetachedProcess.spawn("/bin/sh", ["-c", probe])
             var reaped: Int32 = 0
             waitpid(child, &reaped, 0)

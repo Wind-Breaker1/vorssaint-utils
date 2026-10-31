@@ -226,3 +226,17 @@ extension FeatureStrings {
         }
     }
 }
+
+// Customized builds track upstream releases without replacing the local app.
+extension FeatureStrings {
+    static func upstreamUpdateNotice(_ language: AppLanguage) -> String {
+        switch language {
+        case .zhHans:
+            return "仅检查官方更新。请合并上游源码后自行构建，以保留自定义功能。"
+        case .zhTW, .zhHK:
+            return "僅檢查官方更新。請合併上游原始碼後自行建置，以保留自訂功能。"
+        default:
+            return "Checks upstream releases only. Merge upstream sources and rebuild to retain your custom features."
+        }
+    }
+}

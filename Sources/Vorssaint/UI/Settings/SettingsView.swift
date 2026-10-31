@@ -621,7 +621,6 @@ struct UpdatesView: View {
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
     @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
-    @AppStorage(DefaultsKey.showReleaseNotesBeforeUpdate) private var showReleaseNotesFirst = true
     @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = true
 
     var body: some View {
@@ -639,15 +638,9 @@ struct UpdatesView: View {
                 SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                let whatsNew = FeatureStrings.whatsNew(l10n.language)
-                Toggle(whatsNew.showPreviewToggle, isOn: $showReleaseNotesFirst)
-                if showWhatsNewAfter {
-                    SettingsCaptionText(whatsNew.showPreviewCaption)
-                }
-            }
-
             Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $showWhatsNewAfter)
+
+            SettingsCaptionText(FeatureStrings.upstreamUpdateNotice(l10n.language))
 
             statusRow
 
@@ -658,7 +651,7 @@ struct UpdatesView: View {
                 .disabled(isBusy)
 
                 if case .available = updates.state {
-                    Button(l10n.s.updateInstallButton) {
+                    Button(l10n.s.tabReleaseNotes) {
                         appDelegate()?.showUpdatePreview()
                     }
                     .buttonStyle(.borderedProminent)
@@ -684,15 +677,6 @@ struct UpdatesView: View {
             label(l10n.s.updateUpToDate, system: "checkmark.circle.fill", tint: .green)
         case let .available(version):
             label("\(l10n.s.updateAvailablePrefix) \(version)", system: "arrow.down.circle.fill", tint: .accentColor)
-        case let .downloading(progress):
-            if let progress {
-                label("\(l10n.s.updateDownloading) \(Int(progress * 100))%",
-                      system: "arrow.down.circle", tint: .secondary)
-            } else {
-                label(l10n.s.updateDownloading, system: "arrow.down.circle", tint: .secondary)
-            }
-        case .installing:
-            label(l10n.s.updateInstalling, system: "gearshape.2.fill", tint: .secondary)
         case let .failed(reason):
             label("\(l10n.s.updateFailedPrefix) \(reason)", system: "exclamationmark.triangle.fill", tint: .orange)
         }
@@ -708,7 +692,7 @@ struct UpdatesView: View {
 
     private var isBusy: Bool {
         switch updates.state {
-        case .checking, .downloading, .installing: return true
+        case .checking: return true
         default: return false
         }
     }

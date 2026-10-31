@@ -1294,10 +1294,7 @@ def main():
           + "}\n"
           + declaration(update_view, "struct NotchUpdateControl:")
           + "}\n")
-    write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"
-          + "final class Service: Fixture {\n"
-          + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
-          + "}\n}\n")
+    (OUTPUT / "UpdateAdminInstall.swift").unlink(missing_ok=True)
     highlights = "Sources/Vorssaint/UI/UpdateHighlightsView.swift"
     write("UpdateHighlights.swift", "import AppKit\nimport SwiftUI\nextension UpdateHighlightsTests {\n"
           + "".join(declaration(highlights, prefix) for prefix in [

@@ -187,7 +187,6 @@ enum SettingsBackupSupport {
         DefaultsKey.musicBlockReplacementPath,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
-        DefaultsKey.simulateUpdate,
         DefaultsKey.updateShowcaseIntroVersion,
         DefaultsKey.updateShowcaseMediaOverride,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated,
