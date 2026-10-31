@@ -1,0 +1,228 @@
+@reference '../../../tailwind.css';
+
+@layer components {
+	.markdown-preview :is(h1, h2, h3, h4, h5, h6) {
+		@apply text-center;
+	}
+	.markdown-preview h1 {
+		@apply mb-4 mt-6 border-b-2 border-station-accent/45 pb-2 text-xl font-semibold text-station-text;
+	}
+	.markdown-preview h2 {
+		@apply mb-3 mt-6 border-b border-white/25 pb-2 text-lg font-semibold text-station-text;
+	}
+	.markdown-preview h3 {
+		@apply mb-2 mt-4 text-base font-semibold text-station-accent;
+	}
+	.markdown-preview h4 {
+		@apply mb-2 mt-4 border-l-2 border-station-accent/60 pl-2 text-sm font-bold text-station-text;
+	}
+	.markdown-preview h5 {
+		@apply mb-2 mt-2 text-sm font-semibold text-station-muted;
+	}
+	.markdown-preview h6 {
+		@apply mb-2 mt-2 text-xs font-semibold uppercase text-station-subtle;
+	}
+	/* 段落间距用小外边距，避免零间距时连成一片；列表、引用、代码块等结构块保留更大间距。 */
+	.markdown-preview p {
+		@apply mb-2;
+	}
+	.markdown-preview ul,
+	.markdown-preview ol,
+	.markdown-preview blockquote,
+	.markdown-preview pre,
+	.markdown-preview table {
+		@apply mb-2;
+	}
+	.markdown-preview ul {
+		@apply list-disc space-y-1 pl-4;
+	}
+	.markdown-preview ol {
+		@apply list-decimal space-y-1 pl-4;
+	}
+	.markdown-preview li > ul,
+	.markdown-preview li > ol {
+		@apply mb-0;
+	}
+	.markdown-preview blockquote {
+		@apply border-l-2 border-station-accent/50 pl-2 text-station-muted;
+	}
+	.markdown-preview code {
+		@apply rounded-xl bg-white/10 px-2 font-mono text-xs text-station-info;
+	}
+	.markdown-preview strong {
+		@apply font-extrabold text-station-focus;
+	}
+	.markdown-preview mark {
+		@apply rounded-[0.16rem] bg-station-accent px-[0.2em] py-[0.05em] text-station-bg;
+	}
+	.markdown-preview pre {
+		@apply my-2 whitespace-pre-wrap break-words rounded-lg border border-white/15 p-2;
+		background: rgb(16 25 28 / 0.78);
+	}
+	.markdown-preview .markdown-code-language {
+		@apply mb-2 block border-b border-white/10 pb-1 font-mono text-xs leading-4 text-station-muted;
+	}
+	.markdown-preview pre code {
+		@apply block rounded-none bg-transparent p-0 text-sm leading-6 text-station-text;
+	}
+	.markdown-preview a {
+		@apply text-station-accent underline decoration-station-accent/40 underline-offset-2 transition hover:text-station-focus;
+	}
+	.markdown-preview .markdown-attachment-link {
+		@apply inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-2 py-2 no-underline hover:bg-white/10;
+	}
+	.markdown-preview .markdown-attachment-link::before {
+		content: '附件';
+		@apply mr-2 text-xs text-station-subtle;
+	}
+	.markdown-preview .markdown-attachment-media {
+		@apply my-2 grid gap-2 rounded-xl border border-white/10 bg-white/5 p-2;
+	}
+	.markdown-preview .markdown-attachment-media figcaption {
+		@apply truncate text-xs text-station-muted;
+	}
+	.markdown-preview .markdown-attachment-player {
+		@apply w-full;
+	}
+	.markdown-preview table {
+		@apply w-full overflow-hidden rounded-lg border-separate border-spacing-0 border border-white/15 text-left text-sm;
+	}
+	.markdown-preview th,
+	.markdown-preview td {
+		@apply border-b border-r border-white/10 px-3 py-2 align-top leading-6;
+	}
+	.markdown-preview th {
+		@apply bg-station-accent/15 text-sm font-semibold text-station-text;
+	}
+	.markdown-preview tr:nth-child(even) td {
+		@apply bg-white/5;
+	}
+	.markdown-preview tr > :last-child {
+		@apply border-r-0;
+	}
+	.markdown-preview tbody tr:last-child td {
+		@apply border-b-0;
+	}
+	.markdown-preview tbody tr:hover td {
+		@apply bg-station-accent/10;
+	}
+	.markdown-preview td > :last-child {
+		@apply mb-0;
+	}
+	.markdown-preview img {
+		@apply max-w-full rounded-xl;
+	}
+	.markdown-preview hr {
+		@apply my-4 border-white/10;
+	}
+	.markdown-preview .markdown-callout {
+		@apply mb-2 overflow-hidden rounded-lg border px-2 pb-2 text-sm;
+		border-color: rgb(255 255 255 / 0.1);
+		border-left: 3px solid var(--callout-color);
+		background: linear-gradient(90deg, color-mix(in srgb, var(--callout-color) 12%, transparent), rgb(255 255 255 / 0.018) 32%);
+	}
+	.markdown-preview .markdown-callout-header {
+		@apply -mx-2 mb-2 flex min-h-8 items-center gap-2 px-2 py-1 text-sm font-semibold text-station-text;
+		background: color-mix(in srgb, var(--callout-color) 18%, transparent);
+	}
+	.markdown-preview .markdown-callout summary {
+		@apply cursor-pointer list-none;
+	}
+	.markdown-preview .markdown-callout summary::-webkit-details-marker {
+		display: none;
+	}
+	.markdown-preview .markdown-callout summary::after {
+		content: '';
+		width: 0.375rem;
+		height: 0.375rem;
+		margin-left: auto;
+		border-right: 1px solid currentColor;
+		border-bottom: 1px solid currentColor;
+		transform: rotate(45deg) translateY(-0.125rem);
+		transition: transform 150ms ease;
+	}
+	.markdown-preview .markdown-callout[open] summary::after {
+		transform: rotate(225deg) translate(-0.1rem, -0.1rem);
+	}
+	.markdown-preview .markdown-callout-kind {
+		@apply inline-flex size-4 shrink-0 items-center justify-center;
+		color: var(--callout-color);
+	}
+	.markdown-preview .markdown-callout-kind svg {
+		@apply size-4 fill-none stroke-current;
+		stroke-width: 1.75;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.markdown-preview .markdown-callout-title {
+		@apply min-w-0 flex-1 text-sm font-semibold;
+	}
+	.markdown-preview .markdown-callout > :last-child {
+		@apply mb-0;
+	}
+	.markdown-preview .markdown-callout > p {
+		@apply text-station-muted;
+	}
+	.markdown-preview .markdown-callout-note {
+		--callout-color: var(--color-station-accent);
+	}
+	.markdown-preview .markdown-callout-info {
+		--callout-color: var(--color-station-info);
+	}
+	.markdown-preview .markdown-callout-tip {
+		--callout-color: var(--color-station-success);
+	}
+	.markdown-preview .markdown-callout-warning {
+		--callout-color: var(--color-station-warning);
+	}
+	.markdown-preview .markdown-callout-danger {
+		--callout-color: #dc5a63;
+	}
+	.markdown-preview .markdown-callout-todo {
+		--callout-color: var(--color-station-muted);
+	}
+	.markdown-preview .mermaid {
+		@apply rounded-lg bg-white/5 p-3 text-center;
+	}
+	.markdown-preview .mermaid svg {
+		@apply mx-auto h-auto max-w-full;
+	}
+	.markdown-preview .mermaid-error {
+		@apply border border-station-danger/40 text-left text-station-danger;
+	}
+	.markdown-preview .hljs {
+		@apply text-station-text;
+	}
+	.markdown-preview .hljs .hljs-keyword,
+	.markdown-preview .hljs .hljs-selector-tag,
+	.markdown-preview .hljs .hljs-literal {
+		color: #dba0ca;
+	}
+	.markdown-preview .hljs .hljs-string,
+	.markdown-preview .hljs .hljs-attr,
+	.markdown-preview .hljs .hljs-regexp {
+		color: #9fc99c;
+	}
+	.markdown-preview .hljs .hljs-number,
+	.markdown-preview .hljs .hljs-symbol,
+	.markdown-preview .hljs .hljs-bullet {
+		color: #e5b77a;
+	}
+	.markdown-preview .hljs .hljs-title,
+	.markdown-preview .hljs .hljs-title.function_,
+	.markdown-preview .hljs .hljs-property,
+	.markdown-preview .hljs .hljs-variable {
+		color: #a9c9ef;
+	}
+	.markdown-preview .hljs .hljs-type,
+	.markdown-preview .hljs .hljs-built_in,
+	.markdown-preview .hljs .hljs-class .hljs-title {
+		color: #8ec9c2;
+	}
+	.markdown-preview .hljs .hljs-comment,
+	.markdown-preview .hljs .hljs-quote {
+		color: #897d7a;
+		font-style: italic;
+	}
+}

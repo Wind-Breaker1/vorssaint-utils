@@ -24,3 +24,6 @@ CLAUDE.md
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+
+# Note editor build dependencies
+node_modules/

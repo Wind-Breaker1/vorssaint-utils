@@ -1,0 +1,437 @@
+.excalidraw-canvas {
+	position: relative;
+	isolation: isolate;
+	min-height: 0;
+	flex: 1;
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, var(--color-station-text) 10%, transparent);
+	border-radius: 0.5rem;
+	/* 画布本身保持透明，让 Excalidraw 笔记显示 Station 的壁纸和玻璃层。 */
+	background: transparent;
+}
+
+/* 初始化期间仅保留一个透明层，避免把底部的 Station 毛玻璃卡片盖成纯色。 */
+.excalidraw-canvas::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 100;
+	pointer-events: none;
+	background: transparent;
+	opacity: 0;
+}
+
+.excalidraw-canvas[data-ready='false']::before {
+	opacity: 1;
+}
+
+.excalidraw-canvas > .excalidraw,
+.excalidraw.excalidraw-modal-container {
+	--default-bg-color: transparent;
+	--border-radius-lg: 0.55rem;
+	--border-radius-md: 0.45rem;
+	--input-bg-color: color-mix(in srgb, var(--color-station-bg) 72%, var(--color-station-panel));
+	--input-border-color: color-mix(in srgb, var(--color-station-text) 16%, transparent);
+	--input-hover-bg-color: color-mix(in srgb, var(--color-station-panel) 92%, white);
+	--input-label-color: var(--color-station-muted);
+	/* Excalidraw 的控件沿用 Station 的深色玻璃承托，不再出现独立的纯黑工具岛。 */
+	--station-excalidraw-surface: rgb(20 22 32 / 76%);
+	--station-excalidraw-surface-strong: rgb(20 22 32 / 90%);
+	--island-bg-color: var(--station-excalidraw-surface);
+	--popup-bg-color: var(--station-excalidraw-surface-strong);
+	--popup-secondary-bg-color: rgb(31 34 47 / 91%);
+	--popup-text-color: var(--color-station-text);
+	--popup-text-inverted-color: var(--color-station-bg);
+	--default-border-color: color-mix(in srgb, var(--color-station-text) 15%, transparent);
+	--dialog-border-color: color-mix(in srgb, var(--color-station-text) 18%, transparent);
+	--button-gray-1: color-mix(in srgb, var(--color-station-panel) 92%, white);
+	--button-gray-2: color-mix(in srgb, var(--color-station-panel) 82%, white);
+	--button-gray-3: color-mix(in srgb, var(--color-station-panel) 70%, white);
+	--button-hover-bg: color-mix(in srgb, var(--color-station-accent) 16%, var(--color-station-panel));
+	--button-active-bg: color-mix(in srgb, var(--color-station-accent) 28%, var(--color-station-panel));
+	--button-selected-bg: color-mix(in srgb, var(--color-station-accent) 30%, var(--color-station-panel));
+	--color-primary: var(--color-station-accent);
+	--color-primary-darker: color-mix(in srgb, var(--color-station-accent) 80%, black);
+	--color-primary-darkest: color-mix(in srgb, var(--color-station-accent) 65%, black);
+	--color-primary-light: color-mix(in srgb, var(--color-station-accent) 24%, var(--color-station-panel));
+	--color-primary-hover: color-mix(in srgb, var(--color-station-accent) 86%, white);
+	--color-brand-hover: color-mix(in srgb, var(--color-station-accent) 86%, white);
+	--color-brand-active: var(--color-station-accent);
+	/* 选择框绘制在 Canvas 上，必须使用 Canvas/WebKit 可直接解析的实色；
+	   color-mix() 的计算结果会让句柄退回黑色，从而在深色画布中丢失。 */
+	--color-selection: rgb(190 188 255);
+	--color-surface-high: color-mix(in srgb, var(--color-station-panel) 80%, white);
+	--color-surface-mid: color-mix(in srgb, var(--color-station-panel) 90%, black);
+	--color-surface-low: color-mix(in srgb, var(--color-station-panel) 96%, black);
+	--color-surface-lowest: var(--color-station-bg);
+	--color-on-surface: var(--color-station-text);
+	--color-surface-primary-container: color-mix(in srgb, var(--color-station-accent) 28%, var(--color-station-panel));
+	--text-primary-color: var(--color-station-text);
+	--color-on-primary-container: var(--color-station-text);
+	--icon-fill-color: var(--color-station-muted);
+	--color-gray-40: var(--color-station-muted);
+	--color-gray-60: var(--color-station-subtle);
+	--sidebar-bg-color: var(--station-excalidraw-surface-strong);
+	--sidebar-border-color: var(--default-border-color);
+	--scrollbar-thumb: color-mix(in srgb, var(--color-station-subtle) 45%, transparent);
+	--scrollbar-thumb-hover: color-mix(in srgb, var(--color-station-subtle) 68%, transparent);
+	--focus-highlight-color: color-mix(in srgb, var(--color-station-accent) 75%, white);
+	--shadow-island: var(--station-frost-edge), 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px rgb(0 0 0 / 22%);
+	--modal-shadow: var(--station-frost-edge), 0 10px 28px rgb(0 0 0 / 38%);
+	font-family: var(--font-sans);
+	color: var(--color-station-text);
+}
+
+.excalidraw-canvas > .excalidraw {
+	width: 100%;
+	height: 100%;
+	border-radius: inherit;
+	overflow: hidden;
+	background: transparent;
+}
+
+/* Excalidraw 的实际绘图层在初始化时可能自行写入默认深色背景；
+   透明画布必须覆盖根节点和 canvas 两层，避免切换笔记时黑帧压过遮罩。 */
+.excalidraw-canvas > .excalidraw,
+.excalidraw-canvas > .excalidraw canvas,
+.excalidraw-canvas > .excalidraw .excalidraw__canvas {
+	background-color: transparent !important;
+}
+
+.excalidraw-canvas > .excalidraw.theme--dark,
+.excalidraw-canvas > .excalidraw.theme--dark.theme--dark-background-none {
+	background: transparent !important;
+}
+
+/* Excalidraw 首帧仍可能使用深色默认画布，等 initialData 应用完成后再显示。 */
+.excalidraw-canvas[data-ready='false'] > .excalidraw {
+	visibility: hidden;
+}
+
+.excalidraw-canvas > .excalidraw .Island {
+	border: 1px solid var(--default-border-color);
+	background-color: var(--station-excalidraw-surface);
+	background-image: var(--station-frost-surface);
+	box-shadow: var(--shadow-island);
+	backdrop-filter: blur(16px) saturate(150%);
+	-webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+.excalidraw-canvas > .excalidraw .App-menu__left,
+.excalidraw-canvas > .excalidraw .App-mobile-menu {
+	--button-bg: color-mix(in srgb, var(--color-station-panel) 88%, white);
+	--button-hover-bg: color-mix(in srgb, var(--color-station-accent) 18%, var(--color-station-panel));
+}
+
+/* 工具栏：让普通、悬停、选中和按下状态有清晰但克制的层次。 */
+.excalidraw-canvas > .excalidraw .App-toolbar,
+.excalidraw-canvas > .excalidraw .App-menu__left,
+.excalidraw-canvas > .excalidraw .App-mobile-menu {
+	border: 1px solid var(--default-border-color);
+	background-color: var(--station-excalidraw-surface);
+	background-image: var(--station-frost-surface);
+	box-shadow: var(--shadow-island);
+	backdrop-filter: blur(16px) saturate(150%);
+	-webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+.excalidraw-canvas > .excalidraw .App-toolbar-container {
+	border: 0;
+	box-shadow: none;
+}
+
+.excalidraw-canvas > .excalidraw .ToolIcon__icon,
+.excalidraw-canvas > .excalidraw button.standalone,
+.excalidraw-canvas > .excalidraw .help-icon,
+.excalidraw-canvas > .excalidraw .zoom-button,
+.excalidraw-canvas > .excalidraw .reset-zoom-button {
+	border: 1px solid transparent;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease,
+		box-shadow 140ms ease,
+		color 140ms ease;
+}
+
+.excalidraw-canvas > .excalidraw .ToolIcon__icon:hover,
+.excalidraw-canvas > .excalidraw button.standalone:hover,
+.excalidraw-canvas > .excalidraw .help-icon:hover,
+.excalidraw-canvas > .excalidraw .zoom-button:hover,
+.excalidraw-canvas > .excalidraw .reset-zoom-button:hover {
+	border-color: transparent;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-station-accent) 8%, transparent);
+}
+
+.excalidraw-canvas > .excalidraw .ToolIcon_type_button.ToolIcon--selected .ToolIcon__icon,
+.excalidraw-canvas > .excalidraw .ToolIcon_type_radio:checked + .ToolIcon__icon,
+.excalidraw-canvas > .excalidraw .ToolIcon_type_checkbox:checked + .ToolIcon__icon,
+.excalidraw-canvas > .excalidraw button.standalone.active {
+	border-color: transparent;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-station-accent) 9%, transparent);
+}
+
+.excalidraw-canvas > .excalidraw .ToolIcon__icon:active,
+.excalidraw-canvas > .excalidraw button.standalone:active,
+.excalidraw-canvas > .excalidraw .help-icon:active,
+.excalidraw-canvas > .excalidraw .zoom-button:active {
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-station-accent) 24%, transparent);
+}
+
+/* 更多工具按钮原生使用灰蓝色选中态，和 Station 的 accent 色不一致。 */
+.excalidraw-canvas > .excalidraw .App-toolbar .ToolIcon_type_button:hover,
+.excalidraw-canvas > .excalidraw .App-toolbar .ToolIcon_type_button.ToolIcon--selected {
+	background-color: transparent !important;
+}
+
+.excalidraw-canvas > .excalidraw .App-toolbar .ToolIcon_type_button:hover .ToolIcon__icon {
+	background-color: var(--button-hover-bg) !important;
+}
+
+.excalidraw-canvas > .excalidraw .App-toolbar .ToolIcon_type_button.ToolIcon--selected .ToolIcon__icon {
+	background-color: var(--button-selected-bg) !important;
+}
+
+/* 下拉、右键菜单、颜色选择器和弹窗共用同一套浮层材质。 */
+.excalidraw-canvas > .excalidraw .dropdown-menu-container,
+.excalidraw-canvas > .excalidraw .context-menu,
+.excalidraw-canvas > .excalidraw .color-picker,
+.excalidraw-canvas > .excalidraw .popover,
+.excalidraw-canvas > .excalidraw .Modal__content {
+	border: 1px solid var(--dialog-border-color);
+	border-radius: var(--border-radius-lg);
+	background-color: var(--station-excalidraw-surface-strong);
+	background-image: var(--station-frost-surface);
+	box-shadow: var(--modal-shadow);
+	backdrop-filter: blur(20px) saturate(150%);
+	-webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+.excalidraw-canvas > .excalidraw .dropdown-menu-item,
+.excalidraw-canvas > .excalidraw .context-menu-item {
+	border-radius: 0.35rem;
+	transition:
+		background-color 120ms ease,
+		color 120ms ease;
+}
+
+.excalidraw-canvas > .excalidraw .dropdown-menu-item:hover,
+.excalidraw-canvas > .excalidraw .dropdown-menu-item--hovered,
+.excalidraw-canvas > .excalidraw .context-menu-item:hover {
+	background: var(--button-hover-bg) !important;
+	color: var(--color-station-text);
+}
+
+.excalidraw-canvas > .excalidraw .dropdown-menu-item--selected {
+	background: var(--color-surface-primary-container) !important;
+	color: var(--color-station-text);
+}
+
+.excalidraw-canvas > .excalidraw .Modal__background {
+	background: rgb(20 12 14 / 58%);
+	backdrop-filter: blur(2px);
+}
+
+.excalidraw-canvas > .excalidraw .Modal__content {
+	animation-duration: 150ms;
+}
+
+.excalidraw-canvas > .excalidraw input[type='text'],
+.excalidraw-canvas > .excalidraw textarea:not(.excalidraw-wysiwyg),
+.excalidraw-canvas > .excalidraw .dropdown-select {
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease,
+		box-shadow 140ms ease;
+}
+
+.excalidraw-canvas > .excalidraw input[type='text']:focus,
+.excalidraw-canvas > .excalidraw textarea:not(.excalidraw-wysiwyg):focus,
+.excalidraw-canvas > .excalidraw .dropdown-select:focus {
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-station-accent) 22%, transparent);
+}
+
+/* 四角快捷控件与 Station 的浮层材质保持一致。Excalidraw 默认给这些控件
+ * 使用了深色外描边，和工作区的细边框不协调，因此在这里统一覆盖。 */
+.excalidraw-canvas > .excalidraw .main-menu-trigger,
+.excalidraw-canvas > .excalidraw .zoom-actions,
+.excalidraw-canvas > .excalidraw .undo-redo-buttons,
+.excalidraw-canvas > .excalidraw .help-icon,
+.excalidraw-canvas > .excalidraw .default-sidebar-trigger {
+	border: 1px solid var(--default-border-color) !important;
+	border-radius: var(--border-radius-lg) !important;
+	background-color: var(--station-excalidraw-surface) !important;
+	background-image: var(--station-frost-surface) !important;
+	box-shadow: var(--shadow-island) !important;
+	backdrop-filter: blur(16px) saturate(150%);
+	-webkit-backdrop-filter: blur(16px) saturate(150%);
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease,
+		box-shadow 140ms ease;
+}
+
+/* Library 是新版 SidebarTrigger：default-sidebar-trigger 直接挂在真正的
+ * 可点击节点上，外层 label 只负责承载隐藏 checkbox，不再额外创建表面。 */
+.excalidraw-canvas > .excalidraw .default-sidebar-trigger {
+	width: auto;
+	height: var(--lg-button-size);
+	min-height: var(--lg-button-size);
+	padding: 0 0.5rem !important;
+	gap: 0.5rem;
+	line-height: 1;
+	font-size: 0.75rem;
+	letter-spacing: normal;
+	color: var(--color-station-muted) !important;
+}
+
+.excalidraw-canvas > .excalidraw .default-sidebar-trigger svg {
+	width: var(--lg-icon-size);
+	height: var(--lg-icon-size);
+	color: inherit;
+}
+
+.excalidraw-canvas > .excalidraw .main-menu-trigger:hover,
+.excalidraw-canvas > .excalidraw .help-icon:hover,
+.excalidraw-canvas > .excalidraw .default-sidebar-trigger:hover {
+	border-color: transparent !important;
+	background-color: color-mix(in srgb, var(--color-station-accent) 18%, var(--station-excalidraw-surface)) !important;
+	background-image: none !important;
+	color: var(--color-station-text) !important;
+	box-shadow:
+		var(--station-frost-edge),
+		0 1px 2px rgb(0 0 0 / 22%) !important;
+}
+
+.excalidraw-canvas > .excalidraw .main-menu-trigger:active,
+.excalidraw-canvas > .excalidraw .help-icon:active,
+.excalidraw-canvas > .excalidraw .default-sidebar-trigger:active {
+	border-color: transparent !important;
+	background-color: color-mix(in srgb, var(--color-station-accent) 28%, var(--station-excalidraw-surface)) !important;
+	background-image: none !important;
+	box-shadow: inset 0 1px 2px rgb(0 0 0 / 24%) !important;
+}
+
+.excalidraw-canvas > .excalidraw .default-sidebar-trigger.active {
+	border-color: transparent !important;
+	background-color: var(--button-selected-bg) !important;
+	background-image: none !important;
+	color: var(--color-station-text) !important;
+	box-shadow: inset 0 1px 2px rgb(0 0 0 / 24%) !important;
+}
+
+/* 底部两组按钮共享一个外框，按钮本身只负责交互反馈，避免出现嵌套黑框。 */
+.excalidraw-canvas > .excalidraw .zoom-actions .zoom-button,
+.excalidraw-canvas > .excalidraw .zoom-actions .reset-zoom-button,
+.excalidraw-canvas > .excalidraw .undo-redo-buttons button {
+	border-color: transparent !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	transition:
+		background-color 140ms ease,
+		color 140ms ease;
+}
+
+.excalidraw-canvas > .excalidraw .zoom-actions .zoom-button:hover,
+.excalidraw-canvas > .excalidraw .zoom-actions .reset-zoom-button:hover,
+.excalidraw-canvas > .excalidraw .undo-redo-buttons button:hover {
+	border-color: transparent !important;
+	background: var(--button-hover-bg) !important;
+	box-shadow: none !important;
+}
+
+.excalidraw-canvas > .excalidraw .zoom-actions .zoom-button:active,
+.excalidraw-canvas > .excalidraw .zoom-actions .reset-zoom-button:active,
+.excalidraw-canvas > .excalidraw .undo-redo-buttons button:active {
+	background: var(--button-active-bg) !important;
+}
+
+/* 禁用的重做仍需提供可辨识的图标，而不是退成接近画布的黑色。 */
+.excalidraw-canvas > .excalidraw .undo-redo-buttons button:disabled {
+	opacity: 0.72 !important;
+	background: rgb(255 255 255 / 6%) !important;
+	color: rgb(255 255 255 / 58%) !important;
+}
+
+.excalidraw-canvas > .excalidraw .undo-redo-buttons button:disabled svg {
+	color: inherit !important;
+}
+
+/* Library 使用 Sidebar 承载。把圆角、边框和玻璃背景放在最外层，
+ * 内部列表保持透明，避免出现截图中的双层直角面板。 */
+.excalidraw-canvas > .excalidraw .sidebar {
+	top: 0.5rem;
+	right: 0.5rem;
+	bottom: 0.5rem;
+	border: 1px solid var(--dialog-border-color) !important;
+	border-radius: var(--border-radius-lg);
+	background-color: var(--station-excalidraw-surface-strong) !important;
+	background-image: var(--station-frost-surface) !important;
+	background-clip: padding-box;
+	box-shadow: var(--modal-shadow);
+	backdrop-filter: blur(22px) saturate(155%);
+	-webkit-backdrop-filter: blur(22px) saturate(155%);
+}
+
+.excalidraw-canvas > .excalidraw .sidebar .layer-ui__library,
+.excalidraw-canvas > .excalidraw .sidebar .library-menu-items-container {
+	border: 0;
+	border-radius: 0;
+	background: transparent !important;
+	box-shadow: none;
+}
+
+/*
+ * Help 和其它全屏弹窗由 Excalidraw Portal 挂到 body 下，不在画布容器内，
+ * 因而不会命中上面的容器限定选择器。这里单独覆盖 Portal 根节点，确保
+ * 弹窗使用与画布完全一致的 Station 色板，而不是 Excalidraw 默认的纯黑主题。
+ */
+.excalidraw.excalidraw-modal-container .Modal__background {
+	background: rgb(33 25 27 / 58%);
+	backdrop-filter: blur(6px);
+}
+
+.excalidraw.excalidraw-modal-container .Modal__content {
+	background: var(--island-bg-color);
+	border: 1px solid var(--dialog-border-color);
+	box-shadow: var(--modal-shadow);
+	color: var(--color-station-text);
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog .Modal__content {
+	max-width: 60rem;
+	border-radius: 0.75rem;
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog {
+	color: var(--color-station-text);
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog__btn {
+	--background: color-mix(in srgb, var(--color-station-panel) 92%, white);
+	background: var(--background);
+	border-color: color-mix(in srgb, var(--color-station-text) 10%, transparent);
+	color: var(--color-station-text);
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog__btn:hover {
+	--background: color-mix(in srgb, var(--color-station-accent) 16%, var(--color-station-panel));
+	background: var(--background);
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog__btn:active {
+	border-color: var(--color-station-accent);
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog__island-content {
+	border-color: color-mix(in srgb, var(--color-station-text) 15%, transparent);
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog__shortcut {
+	border-color: color-mix(in srgb, var(--color-station-text) 12%, transparent);
+	color: var(--color-station-muted);
+}
+
+.excalidraw.excalidraw-modal-container .HelpDialog__key {
+	background: color-mix(in srgb, var(--color-station-accent) 24%, var(--color-station-panel));
+	color: var(--color-station-text);
+}

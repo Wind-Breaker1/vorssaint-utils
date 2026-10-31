@@ -1,0 +1,570 @@
+@import 'tailwindcss';
+
+@theme {
+	--font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1.4;
+	/* x-hub 的透明壁纸态：所有文字是白墨，只有卡片拥有玻璃表面。 */
+	/* 壁纸缺失时仍落在 x-hub 沉浸态的深色基底上，不露出浅色底。 */
+	--color-station-bg: #141520;
+	--color-station-panel: rgb(255 255 255 / 20%);
+	--color-station-surface: rgb(255 255 255 / 12%);
+	--color-station-raised: rgb(255 255 255 / 20%);
+	--color-station-line: rgb(255 255 255 / 18%);
+	--color-station-line-strong: rgb(255 255 255 / 30%);
+	--color-station-focus: #c9c7fb;
+	--color-station-text: #ffffff;
+	--color-station-muted: rgb(255 255 255 / 80%);
+	--color-station-subtle: rgb(255 255 255 / 55%);
+	--color-station-accent: #a2a0f5;
+	--color-station-info: #8ad3e8;
+	--color-station-danger: #ff9d95;
+	--color-station-success: #9fe1b2;
+	--color-station-warning: #ffd780;
+	/* x-hub dark + immersive 的 --shadow-card。 */
+	--shadow-station-surface: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px rgb(0 0 0 / 18%);
+	/* x-hub 的 --frost-edge：不是描边，而是玻璃上沿的极弱内高光。 */
+	--station-frost-edge: inset 0 1px 0 rgb(255 255 255 / 10%);
+	/* x-hub 真实透底态的输入/高密度信息承托层。 */
+	/* 数据格是文字的直接承托面：透明度必须足以压住亮色壁纸，
+	   否则 backdrop-filter 只会柔化图片，不会提高文字对比度。 */
+	--station-smoke-surface: rgb(20 22 32 / 30%);
+	/* 与 x-hub 暗色沉浸态同构：三个淡色相层 + .10/.06 白色玻璃基底。
+	   各页面只引用此 token，避免再出现各自的实色卡片。 */
+	--station-frost-surface:
+		radial-gradient(180% 130% at 0% -12%, rgb(139 139 255 / 16%), transparent 55%),
+		radial-gradient(150% 120% at 105% 6%, rgb(138 211 232 / 11%), transparent 55%),
+		radial-gradient(170% 130% at 50% 116%, rgb(59 130 246 / 13%), transparent 55%),
+		linear-gradient(150deg, rgb(255 255 255 / 10%) 0%, rgb(255 255 255 / 6%) 100%);
+	/* 复盘日历：第一列周号窄列，其余 7 列均分（生成 grid-cols-calendar 工具类）。 */
+	--grid-template-columns-calendar: 2.1rem repeat(7, minmax(0, 1fr));
+	/* 卡片网格：按最小列宽自动铺列（生成 grid-cols-card 工具类），任务/笔记/领域/图片/回收站/设置卡片共用。 */
+	--grid-template-columns-card: repeat(auto-fill, minmax(20rem, 1fr));
+	/* 闪念网格：文本短、一行要铺更多个，最小列宽比卡片网格窄（生成 grid-cols-capture 工具类）。 */
+	--grid-template-columns-capture: repeat(auto-fill, minmax(14rem, 1fr));
+}
+
+@layer base {
+	html,
+	body,
+	#app {
+		height: 100%;
+	}
+	body {
+		margin: 0;
+		position: relative;
+		overflow: hidden;
+		color: var(--color-station-text);
+		background: var(--color-station-bg);
+		font-family: var(--font-sans);
+		-webkit-font-smoothing: antialiased;
+	}
+	#app {
+		position: relative;
+		background: transparent;
+
+		display: flex;
+		flex-direction: column;
+	}
+	/* 剪贴板浮窗（独立窗口 label=clipboard）没有主窗口壁纸。 */
+	body.clipboard-window {
+		background: transparent;
+	}
+	body.clipboard-window #app {
+		background: transparent;
+		background-image: none;
+	}
+	button,
+	input,
+	select {
+		font: inherit;
+	}
+	/* 数字输入保留键盘录入，但不显示浏览器原生的右侧增减按钮。 */
+	input[type='number'] {
+		-moz-appearance: textfield;
+		appearance: textfield;
+	}
+	input[type='number']::-webkit-inner-spin-button,
+	input[type='number']::-webkit-outer-spin-button {
+		margin: 0;
+		-webkit-appearance: none;
+	}
+	button {
+		cursor: pointer;
+		user-select: none;
+	}
+	a,
+	[role='button'] {
+		cursor: pointer;
+	}
+	button:disabled,
+	a[aria-disabled='true'],
+	[role='button'][aria-disabled='true'] {
+		cursor: not-allowed;
+	}
+	button:focus-visible,
+	a:focus-visible,
+	[role='button']:focus-visible {
+		outline: 2px solid color-mix(in srgb, var(--color-station-accent) 80%, white) !important;
+		outline-offset: 2px;
+	}
+	.station-icon {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	/* 使用系统细滚动条；ScrollContainer 自身为覆盖式滚动条保留 8px。 */
+	* {
+		box-sizing: border-box;
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in srgb, var(--color-station-subtle) 28%, transparent) transparent;
+	}
+	*::-webkit-scrollbar {
+		width: 4px;
+		height: 4px;
+	}
+	*::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	*::-webkit-scrollbar-thumb {
+		border-radius: 99px;
+		background: color-mix(in srgb, var(--color-station-subtle) 28%, transparent);
+	}
+	*::-webkit-scrollbar-thumb:hover {
+		background: color-mix(in srgb, var(--color-station-subtle) 48%, transparent);
+	}
+	*::-webkit-scrollbar-button {
+		display: none;
+	}
+	/* 上面是伪元素版；下面是与它对应的标准属性版 —— 当前实际生效的是标准属性这一套。 */
+	*:hover {
+		scrollbar-color: color-mix(in srgb, var(--color-station-subtle) 48%, transparent) transparent;
+	}
+}
+
+@layer components {
+	.station-metric-grid {
+		@apply grid grid-cols-2 gap-2;
+	}
+	.station-metric-card {
+		@apply rounded-xl bg-white/5 p-2;
+	}
+}
+
+@layer utilities {
+	.titlebar-overlay {
+		app-region: drag;
+	}
+	.titlebar-control {
+		app-region: no-drag;
+	}
+	/* 所有 hover/focus 提示统一由 Tooltip 包装组件承载，避免浏览器原生 title 的延迟与样式不可控。 */
+	.station-tooltip {
+		@apply relative;
+	}
+	.station-tooltip-content {
+		@apply pointer-events-none fixed z-50 rounded-xl px-2 py-1 text-xs text-station-text;
+		width: max-content;
+		border: 1px solid rgb(255 255 255 / 16%);
+		background-color: rgb(20 22 32 / 78%);
+		background-image: var(--station-frost-surface);
+		background-clip: padding-box;
+		box-shadow:
+			var(--station-frost-edge),
+			0 8px 20px rgb(0 0 0 / 32%);
+		backdrop-filter: blur(18px) saturate(155%);
+		-webkit-backdrop-filter: blur(18px) saturate(155%);
+		text-shadow: 0 1px 2px rgb(0 0 0 / 55%);
+		white-space: normal;
+		overflow-wrap: anywhere;
+		opacity: 0;
+		visibility: hidden;
+		transform: translateY(2px);
+		transition:
+			opacity 140ms ease,
+			transform 140ms ease,
+			visibility 140ms;
+	}
+	.station-tooltip-content[data-visible='true'] {
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(0);
+	}
+	.station-tooltip-content[data-placement='top'] {
+		transform: translateY(-2px);
+	}
+	.station-tooltip-content[data-placement='top'][data-visible='true'] {
+		transform: translateY(0);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.station-tooltip-content {
+			transition: none;
+		}
+	}
+
+	.station-button-primary {
+		@apply inline-flex min-h-7 items-center justify-center rounded-lg bg-station-accent px-2 py-1 text-xs font-semibold text-station-text transition hover:bg-station-accent/90 disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	.station-button-secondary {
+		@apply inline-flex min-h-7 items-center justify-center rounded-lg bg-white/5 px-2 py-1 text-xs font-medium text-station-text transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	.station-button-ghost {
+		@apply inline-flex min-h-7 items-center justify-center rounded-lg bg-transparent px-2 py-1 text-xs font-medium text-station-text transition hover:bg-white/10 hover:text-station-text disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	.station-load-more {
+		@apply inline-flex h-7 items-center justify-center gap-2 px-2 text-xs font-medium text-station-text transition hover:text-station-text disabled:cursor-not-allowed disabled:opacity-60;
+	}
+	.station-button-delete {
+		@apply rounded-xl p-2 text-station-subtle transition hover:bg-station-danger/10 hover:text-station-danger disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	/* 紧凑任务元信息行的删除控件；进入列表项后由共享规则统一为 20px 操作按钮。 */
+	.station-button-delete-sm {
+		@apply rounded-xl p-0.5;
+	}
+	.station-button-danger {
+		@apply inline-flex min-h-8 items-center justify-center rounded-xl border border-station-danger/35 bg-station-danger/15 px-2 py-1 text-xs font-medium text-station-text transition hover:bg-station-danger/25 disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	.station-button-quiet {
+		@apply rounded-xl px-2 py-1 text-xs text-station-text transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	.station-icon-button {
+		@apply inline-grid size-7 place-items-center rounded-xl text-station-subtle transition hover:bg-white/10 hover:text-station-text disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	/* 记录卡片内的图标操作统一 20px 外框和中等圆角；图标与内边距按各操作的视觉重量微调。 */
+	.station-list-item .station-icon-button,
+	.station-list-item .station-button-delete,
+	.station-list-item .station-button-delete-sm {
+		@apply size-5 rounded-md p-0.5;
+	}
+	/* 笔记标签小标签：回车确认后生成的标签样式，编辑态右侧带移除按钮。 */
+	.station-tag-chip {
+		@apply inline-flex max-w-full select-none items-center gap-0 rounded-xl border border-station-accent/40 bg-station-accent/15 py-0 text-xs leading-4 text-station-text transition;
+	}
+	.station-tag-chip-remove {
+		@apply grid size-4 shrink-0 cursor-pointer place-items-center rounded-xl text-station-muted transition hover:bg-station-danger/25 hover:text-station-danger;
+	}
+	/* 光晕跟随 station-accent，避免图标与光晕落在两个不同色相上。 */
+	.station-icon-glow {
+		filter: drop-shadow(0 0 0.2rem color-mix(in srgb, var(--color-station-accent) 70%, transparent))
+			drop-shadow(0 0 0.5rem color-mix(in srgb, var(--color-station-accent) 40%, transparent));
+		animation: station-icon-glow-pulse 2.8s ease-in-out infinite;
+	}
+	@keyframes station-icon-glow-pulse {
+		0%,
+		100% {
+			filter: drop-shadow(0 0 0.2rem color-mix(in srgb, var(--color-station-accent) 58%, transparent))
+				drop-shadow(0 0 0.45rem color-mix(in srgb, var(--color-station-accent) 32%, transparent));
+		}
+		50% {
+			filter: drop-shadow(0 0 0.3rem color-mix(in srgb, var(--color-station-accent) 82%, transparent))
+				drop-shadow(0 0 0.7rem color-mix(in srgb, var(--color-station-accent) 48%, transparent));
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.station-icon-glow {
+			animation: none;
+		}
+	}
+	.station-input {
+		@apply flex h-8 items-center gap-2 rounded-lg border border-transparent px-2 text-station-muted;
+		background: var(--station-smoke-surface);
+	}
+	.station-input-field {
+		/* 字号与 station-textarea / station-input-trigger / station-input-table 对齐，表单控件统一 12px。
+		   本类在 @layer utilities，会压掉调用方追加的 text-*（与 station-textarea 同理，见 QuickModal 注释）：
+		   需要大字号请勿复用本类，改用自带完整工具类的写法。 */
+		@apply h-8 rounded-lg border border-transparent px-2 text-xs text-station-text outline-none transition placeholder:text-station-subtle focus:border-station-accent/70 disabled:cursor-not-allowed disabled:opacity-60;
+		background: var(--station-smoke-surface);
+	}
+	.station-input-trigger {
+		/* focus-within 兼容两种触发器形态：普通按钮自身聚焦，可搜索形态由内部输入框聚焦。 */
+		@apply flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-transparent px-2 text-left text-xs text-station-text outline-none transition hover:bg-white/15 focus-within:border-station-accent/70 disabled:cursor-not-allowed disabled:opacity-60;
+		background: var(--station-smoke-surface);
+	}
+	.station-input-trigger-minimal {
+		@apply flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-transparent bg-transparent px-2 text-left text-xs text-station-text outline-none transition hover:bg-white/5 hover:text-station-text focus-within:border-station-accent/50 focus-within:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60;
+	}
+	.station-input-trigger-sm {
+		@apply h-6;
+	}
+	/* 非滚动页面根只负责伸缩与右侧留白，滚动交给 ScrollContainer。 */
+	.station-page {
+		@apply min-h-0 min-w-0 flex-1 pr-2 pb-2;
+	}
+	.station-page-header {
+		@apply mb-2 flex shrink-0 flex-wrap items-center gap-2;
+	}
+	.station-popup {
+		@apply rounded-xl border border-transparent bg-station-panel shadow-2xl backdrop-blur-xl;
+		backdrop-filter: blur(22px) saturate(145%);
+		-webkit-backdrop-filter: blur(22px) saturate(145%);
+	}
+	/* 居中模态的承载面。与 .station-popup 同属浮层，区别在**面积**：
+	   下拉浮层是小块、落在局部，白 frost 就够；模态动辄 500px 见方、背后常压着高密度网格
+	   （任务页日历格线、表格边），那层白 frost 会让背后结构直接穿透正文 —— 表现为
+	   「弹窗里的字和背后的字分不清」。所以这里做了两件事，缺一不可：
+	   ① 在 frost 之下叠一层深色承托（与输入框同源的 smoke 语义）压住亮度动态范围；
+	   ② 把取景加强到 28px，把剩余那部分背景「结构」抹掉（只调暗不模糊，格线仍然看得见）。
+	   两处数值都是实测调出来的，不是估算。 */
+	.station-modal {
+		@apply rounded-xl;
+		border: 1px solid transparent;
+		background-color: rgb(20 22 32 / 72%);
+		background-image: var(--station-frost-surface);
+		background-clip: padding-box;
+		box-shadow:
+			var(--station-frost-edge),
+			0 24px 64px rgb(0 0 0 / 55%);
+		backdrop-filter: blur(28px) saturate(150%);
+		-webkit-backdrop-filter: blur(28px) saturate(150%);
+		text-shadow:
+			0 1px 2px rgb(0 0 0 / 48%),
+			0 0 4px rgb(0 0 0 / 28%);
+	}
+	/* 深色承载面（.station-modal）上的输入井。默认的 `--station-smoke-surface`（30%）是给
+	   「浅色玻璃面板上压一个输入」设计的，叠在本来就很深的模态上几乎看不出凹陷，故按同一语义加深一档。
+	   刻意用显式类而不是 `.station-modal :is(input, textarea)`：后者会连下拉框内部的
+	   combobox 输入框（`bg-transparent`，特异性更低）一起染黑，在触发器里显出一条深色内框。
+	   本类**只写背景色**，不要往里加尺寸——避免覆盖复合控件内部的透明输入框。 */
+	.station-input-well {
+		background-color: rgb(20 22 32 / 45%);
+	}
+	/* Legacy surface tokens; note-window appearance is owned by AppKit and shell.css. */
+	.clipboard-surface {
+		@apply rounded-xl;
+		border: 1px solid rgb(255 255 255 / 12%);
+		background-color: rgb(18 20 30 / 42%);
+		background-image: var(--station-frost-surface);
+		background-clip: padding-box;
+		/* 只有内高光，不写外投影：窗口就是 380×520，外投影全被窗口边界裁掉，
+		   真正的落影由窗口自身的 `shadow: true` 交给系统画。 */
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%);
+		text-shadow:
+			0 1px 2px rgb(0 0 0 / 50%),
+			0 0 4px rgb(0 0 0 / 30%);
+	}
+	/* 面板材质：数量较少、面积较大，允许使用 backdrop-filter 提供沉浸式背景。 */
+	.station-panel {
+		@apply rounded-xl;
+		border: 1px solid transparent;
+		background: var(--station-frost-surface);
+		background-clip: padding-box;
+		box-shadow: var(--station-frost-edge), var(--shadow-station-surface);
+		backdrop-filter: blur(16px) saturate(160%);
+		-webkit-backdrop-filter: blur(16px) saturate(160%);
+		text-shadow:
+			0 1px 2px rgb(0 0 0 / 48%),
+			0 0 4px rgb(0 0 0 / 28%);
+	}
+	.station-panel {
+		@apply p-2;
+	}
+	/* 已有玻璃面板内的静态分组：保留轮廓，不再重复模糊背景。 */
+	.station-card-flat {
+		@apply rounded-xl p-1;
+		border: 1px solid rgb(255 255 255 / 10%);
+		background: rgb(255 255 255 / 5%);
+		box-shadow:
+			var(--station-frost-edge),
+			0 1px 2px rgb(0 0 0 / 35%);
+		text-shadow:
+			0 1px 2px rgb(0 0 0 / 48%),
+			0 0 4px rgb(0 0 0 / 28%);
+	}
+	/* 通用列表项：从笔记列表项提取。所有内容列表统一使用完整的取景表面，保持笔记、项目、
+	   闪念、设置、回收站和交易纪律的视觉一致。内边距、裁剪（左侧选中竖条需要）与过渡
+	   都收敛在这里，可点击的项自己再补 cursor-pointer。
+	   选中态用 data-selected 驱动：材质的 background 简写在同层会压过 bg-* 工具类，
+	   属性选择器 (0,2,0) 才能稳定盖住它；置于 hover 之后，悬停选中项时保持 accent 底色。 */
+	.station-list-item {
+		@apply relative shrink-0 overflow-hidden rounded-lg border border-transparent p-1 text-left transition;
+		background: var(--station-frost-surface);
+		background-clip: padding-box;
+		box-shadow: var(--station-frost-edge), var(--shadow-station-surface);
+		text-shadow:
+			0 1px 2px rgb(0 0 0 / 48%),
+			0 0 4px rgb(0 0 0 / 28%);
+	}
+	/* Tooltip 需要越过列表项底部显示；否则 overflow-hidden 会把提示层裁成一条黑色横线。 */
+	.station-list-item:has(.station-tooltip) {
+		overflow: visible;
+	}
+	/* 日历事件等高密度单行记录保留完整卡片状态，只把内边距收紧到 4px。 */
+	.station-list-item-compact {
+		@apply p-1;
+	}
+	.station-list-item:hover {
+		background-color: rgb(255 255 255 / 10%);
+	}
+	/* 首页项目卡整卡可点，hover 只给轻微提亮，避免三列网格里大面积变白。 */
+	.home-project-card:hover {
+		background-color: rgb(255 255 255 / 5%);
+	}
+	.station-list-item:has(> button),
+	.station-list-item:has(> a),
+	.note-outline-item {
+		cursor: pointer;
+	}
+	/* 原生主按钮覆盖整张卡片，独立标签/删除按钮通过 z-10 保持可操作。 */
+	.station-list-item:has(:focus-visible) {
+		outline: 2px solid var(--color-station-focus);
+		outline-offset: -2px;
+	}
+	.station-list-item[data-selected='true'] {
+		background-color: color-mix(in srgb, var(--color-station-accent) 15%, transparent);
+	}
+	.home-project-card .project-card-main {
+		@apply min-w-0;
+	}
+	.home-project-card .home-project-card-main {
+		@apply gap-1;
+	}
+	.home-project-card .home-project-card-copy {
+		@apply flex flex-1 items-center gap-2;
+	}
+	.home-project-card .home-project-domain {
+		@apply shrink-0;
+	}
+	.home-project-card .home-project-card-meta {
+		@apply mt-0 justify-start gap-2;
+	}
+	.home-project-card .home-project-progress-label {
+		@apply ml-auto;
+	}
+	.home-project-card .project-card-main .station-text-caption {
+		@apply truncate;
+	}
+	/* 选中竖条：贴项左缘的 1px 宽圆角色条，未选中是淡白色痕迹，选中由 data-selected 点亮。 */
+	.station-item-bar {
+		@apply absolute inset-y-2 left-0 w-1 rounded-r bg-white/5;
+	}
+	.station-list-item[data-selected='true'] .station-item-bar {
+		background-color: var(--color-station-accent);
+	}
+	/* 笔记详情右侧目录使用紧凑的文字列表，不重复使用内容卡片材质。 */
+	.note-outline-item {
+		@apply relative shrink-0 overflow-visible border-l-0 px-1 py-0.5 text-left leading-4 transition;
+	}
+	.note-outline-item:hover {
+		background: rgb(255 255 255 / 6%);
+	}
+	.note-outline-children {
+		position: relative;
+	}
+	.note-outline-children::before {
+		content: '';
+		@apply absolute bottom-0 left-2 top-0 w-px;
+		background: color-mix(in srgb, var(--color-station-subtle) 25%, transparent);
+	}
+	.note-outline-item[data-selected='true'] {
+		background: color-mix(in srgb, var(--color-station-accent) 10%, transparent);
+	}
+	.note-outline-item:has(:focus-visible) {
+		outline: 2px solid var(--color-station-focus);
+		outline-offset: -2px;
+	}
+	/* 多行文本输入（textarea）。 */
+	.station-textarea {
+		@apply w-full rounded-lg border border-transparent px-2 py-2 text-xs text-station-text outline-none transition placeholder:text-station-subtle focus:border-station-accent/70;
+		background: var(--station-smoke-surface);
+	}
+	/* 表格内的小型居中输入。 */
+	.station-input-table {
+		@apply rounded-lg border border-transparent px-2 py-2 text-center text-xs text-station-text outline-none transition focus:border-station-accent/70;
+		background: var(--station-smoke-surface);
+	}
+	.station-panel svg,
+	.station-list-item svg {
+		filter: drop-shadow(0 1px 1px rgb(0 0 0 / 45%));
+	}
+	/* 壁纸上的导航与标题栏需要独立文字衬底。 */
+	.station-sidebar,
+	.titlebar-overlay {
+		text-shadow:
+			1px 0 0 rgb(0 0 0 / 58%),
+			-1px 0 0 rgb(0 0 0 / 58%),
+			0 1px 0 rgb(0 0 0 / 58%),
+			0 -1px 0 rgb(0 0 0 / 58%),
+			0 1px 3px rgb(0 0 0 / 35%);
+	}
+	.station-sidebar svg,
+	.titlebar-overlay svg {
+		filter: drop-shadow(0 1px 2px rgb(0 0 0 / 50%));
+	}
+	.station-segmented {
+		@apply flex gap-2 rounded-lg bg-transparent p-0;
+	}
+	.station-segmented-item {
+		@apply h-7 flex-1 cursor-pointer whitespace-nowrap rounded-lg px-2 text-xs text-station-text transition hover:bg-station-accent/10 hover:text-station-text;
+	}
+	/* 选中态：accent 淡染底 + 白色文字。全站正文都是白字（--color-station-text: #ffffff），
+	   实心浅紫底压深字是体系里唯一一处深色文字，故改为淡染底，让白字保持足够对比度
+	   （实心 #a2a0f5 上白字仅约 2.4:1，此处约 11:1）。
+	   显式覆盖 hover 是必须的：`.station-segmented-item:hover` 的伪类特异性(0,2,0)高于
+	   本类(0,1,0)，不覆盖就会出现「悬停选中项反而变回未选中样式」。 */
+	.station-segmented-item-active {
+		@apply bg-station-accent/30 text-station-text shadow-sm hover:bg-station-accent/30 hover:text-station-text;
+	}
+	.station-empty-state {
+		@apply py-8 text-center text-xs text-station-subtle;
+	}
+	/* 文本语义等级：次要文字与辅助（弱化）文字，统一字号 + 颜色组合。 */
+	.station-text-secondary {
+		@apply text-xs text-station-muted;
+	}
+	.station-text-caption {
+		@apply text-xs text-station-subtle;
+		text-shadow: 0 1px 2px rgb(0 0 0 / 58%);
+	}
+	.station-loading-dots {
+		@apply inline-flex items-center gap-2;
+	}
+	.station-loading-dots i {
+		@apply size-1.5 rounded-full bg-station-accent;
+		animation: station-loading-pulse 900ms ease-in-out infinite;
+	}
+	.station-loading-dots i:nth-child(2) {
+		animation-delay: 150ms;
+	}
+	.station-loading-dots i:nth-child(3) {
+		animation-delay: 300ms;
+	}
+	@keyframes station-loading-pulse {
+		0%,
+		80%,
+		100% {
+			opacity: 0.35;
+			transform: translateY(0);
+		}
+		40% {
+			opacity: 1;
+			transform: translateY(-2px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.station-loading-dots i {
+			animation: none;
+			opacity: 0.7;
+		}
+	}
+	.station-progress {
+		appearance: none;
+		height: 0.25rem;
+		overflow: hidden;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.1);
+	}
+	.station-progress::-webkit-progress-bar {
+		background: rgba(255, 255, 255, 0.1);
+	}
+	.station-progress::-webkit-progress-value {
+		border-radius: 999px;
+		background: var(--color-station-success);
+	}
+	.station-progress::-moz-progress-bar {
+		border-radius: 999px;
+		background: var(--color-station-success);
+	}
+}
