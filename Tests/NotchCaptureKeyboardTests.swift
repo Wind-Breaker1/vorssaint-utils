@@ -34,6 +34,7 @@ enum NotchCaptureKeyboardContract {
             let rawValue: Int
             static let keyDown = Self(rawValue: 1)
             static let keyUp = Self(rawValue: 2)
+            static let rightMouseDown = Self(rawValue: 4)
         }
         enum EventType { case keyDown, keyUp }
         let window: NSPanel?

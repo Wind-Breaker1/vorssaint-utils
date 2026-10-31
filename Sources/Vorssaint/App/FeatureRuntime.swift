@@ -381,6 +381,30 @@ final class FeatureRuntime: ObservableObject {
         .notchMascot: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
         },
+        .reminders: {
+            if AppFeature.reminders.isAvailable {
+                WorkspaceQuickHotkey.shared.start()
+                ReminderService.shared.refresh()
+            } else {
+                WorkspaceQuickHotkey.shared.stop()
+                AppDelegate.workspaceTaskWindow?.close()
+                ReminderService.shared.suspend()
+            }
+        },
+        .accounting: {
+            AccountingShortcutService.shared.syncWithPreferences()
+            if !AppFeature.accounting.isAvailable {
+                AccountingService.stopIfLoaded()
+            }
+        },
+        .notes: {
+            if !AppFeature.notes.isAvailable {
+                NotificationCenter.default.post(name: .notesFlush, object: nil)
+                AppDelegate.workspaceNoteWindow?.orderOut(nil)
+                AppDelegate.workspaceNoteWindow?.contentViewController = nil
+                AppDelegate.workspaceNoteWindow = nil
+            }
+        },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {

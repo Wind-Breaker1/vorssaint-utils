@@ -804,6 +804,14 @@ final class NotchService: ObservableObject {
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
+    private var accountingLedgerVisible = false
+    func setAccountingLedgerVisible(_ visible: Bool) {
+        guard accountingLedgerVisible != visible else { return }
+        accountingLedgerVisible = visible
+        objectWillChange.send()
+        if expanded && selected == .accounting { refreshPresentation() }
+    }
+
     var musicShowsVolume: Bool { NotchSupport.showsMusicVolume() }
 
     var expandedSize: CGSize {
@@ -812,7 +820,7 @@ final class NotchService: ObservableObject {
         }
         let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
         let launcher = QuickLauncherService.shared
-        return pageSize(in: expandedGeometry, module: showingAppPanel ? .tools : selected,
+        var size = pageSize(in: expandedGeometry, module: showingAppPanel ? .tools : selected,
                         detail: selectedMetric != nil, panel: showingAppPanel,
                         detailHeight: selectedMetric == .fan ? fanDetailHeight : nil,
                         musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
@@ -820,6 +828,10 @@ final class NotchService: ObservableObject {
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
                         toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
                         capturePreviewHeight: captureContent == nil ? nil : captureContentHeight)
+        if selected == .accounting, accountingLedgerVisible, !showingAppPanel, selectedMetric == nil {
+            size.height = min(max(size.height + 140, 440), geometry.screen.height - 48 - geometry.quickAccessBottomInset)
+        }
+        return size
     }
 
     /// The open island as Settings previews a section: at rest, with no
@@ -1911,6 +1923,10 @@ final class NotchService: ObservableObject {
 
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
+        if module == .notes {
+            perform { (NSApp.delegate as? AppDelegate)?.openNotesWindow() }
+            return
+        }
         open(module)
     }
 

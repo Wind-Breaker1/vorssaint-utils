@@ -579,6 +579,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
         Sources/Vorssaint/Core/SecureInputSupport.swift
+        Sources/Vorssaint/Services/Accounting/AccountingModels.swift
+        Sources/Vorssaint/Services/Accounting/AccountingRepository.swift
+        Sources/Vorssaint/Services/Reminders/ReminderModels.swift
+        Sources/Vorssaint/Services/Reminders/ReminderFilter.swift
         Tests/*.swift
         build/generated-tests/*.swift
     )
@@ -687,6 +691,7 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
+cp -R Resources/NoteWeb "$STAGE/Contents/Resources/NoteWeb"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"

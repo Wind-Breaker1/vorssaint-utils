@@ -159,6 +159,8 @@ struct NotchPagePreview: View {
             NotchNotificationsView(size: size).notchBand(trailing: { NotchClearNotificationsButton() })
         case .downloads: NotchDownloadsView(size: size)
         case .calendar: NotchCalendarView(size: size)
+        case .reminders, .accounting, .notes:
+            NotchEmptyView(symbol: module.symbol, message: FeatureStrings.notchEditor(l10n.language).summary(module))
         case .controls: NotchControlsView(service: notch, size: size)
         case .mixer: NotchMixerView(size: size)
         case .music: NotchMusicView(size: size, extrasHeight: notch.geometry.musicExtrasHeight)
@@ -399,6 +401,9 @@ extension NotchModule {
         case .system: return .green
         case .tools: return .gray
         case .calendar: return .red
+        case .notes: return .blue
+        case .reminders: return .orange
+        case .accounting: return .green
         case .notifications: return .orange
         case .timer: return .mint
         case .camera: return .teal

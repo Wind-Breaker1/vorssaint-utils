@@ -113,10 +113,14 @@ enum SettingsDirectory {
             windowsControls: rows(1), utilities: rows(4).filter {
                 !islandPages.contains($0.id) && $0.id != .page(.notchMascot)
             })
+        let personal = byGroup.utilities.filter { [.notes, .reminders, .accounting].contains($0.destination.page) }
         let featured = [
             SettingsSidebarSection(id: 0, title: categories.essentials,
                                    items: Array(core.prefix(3)) + island + Array(core.dropFirst(3))),
-            SettingsSidebarSection(id: 4, title: categories.utilities, items: byGroup.utilities),
+            SettingsSidebarSection(id: 9, title: hub.groupPersonalTools, items: personal),
+            SettingsSidebarSection(id: 4, title: categories.utilities, items: byGroup.utilities.filter {
+                ![.notes, .reminders, .accounting].contains($0.destination.page)
+            }),
             SettingsSidebarSection(id: 6, title: hub.groupSound, items: sound + byGroup.sound),
             SettingsSidebarSection(id: 7, title: hub.groupEnergyDisplay, items: energy),
             SettingsSidebarSection(id: 1, title: hub.groupWindowsDock, items: byGroup.windowsDock),
@@ -415,6 +419,10 @@ enum SettingsDirectory {
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
                                         (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
                                        ]),
+                SettingsDirectoryItem(page: .accounting, title: "记账", icon: "yensign.circle", keywords: ["收支", "账本", "分类", "月度统计"]),
+                SettingsDirectoryItem(page: .reminders, title: "提醒事项", icon: "checklist", keywords: ["待办", "提醒事项", "默认列表", "快捷新增"]),
+                SettingsDirectoryItem(page: .notes, title: "笔记", icon: AppFeature.notes.symbolName,
+                                      keywords: ["存储目录", "更改目录", "重建笔记索引", "Markdown", "Excalidraw"]),
                 SettingsDirectoryItem(page: .screenshot,
                                        title: FeatureStrings.screenshot(language).screenCaptureTitle,
                                        icon: "camera.viewfinder",

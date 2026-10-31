@@ -94,6 +94,9 @@ struct NotchEditorStrings {
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
+        case .notes: return "打开 Markdown 与 Excalidraw 笔记窗口。"
+        case .reminders: return "查看、筛选与添加提醒事项。"
+        case .accounting: return "快速记录收支并打开账本。"
         }
     }
 }

@@ -397,11 +397,12 @@ struct NotchSettings: View {
 
     /// The mixer, the system page and the tools arrange themselves in the island.
     private func hasOptions(_ module: NotchModule) -> Bool {
-        ![.mixer, .system, .tools].contains(module)
+        ![.mixer, .system, .tools, .reminders, .accounting, .notes].contains(module)
     }
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
+        case .reminders, .accounting, .notes: EmptyView()
         case .controls:
             let primary = [NotchControlItem.music, .volume, .brightness, .keyboardLight]
             HStack(spacing: 10) {
@@ -872,11 +873,14 @@ struct NotchSettings: View {
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
         case .controls, .music, .captures, .system: return nil
+        case .notes: return .notes
+        case .reminders: return .reminders
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf
         case .tools: return .quickLauncher
         case .calendar: return .notchCalendar
+        case .accounting: return .accounting
         case .notifications: return .notchNotifications
         case .timer: return .notchTimer
         case .camera: return .cameraPreview

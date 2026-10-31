@@ -407,6 +407,7 @@ private struct PurposeStep: View {
         case .clipboardFiles: return hub.groupClipboardFiles
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
+        case .personalTools: return hub.groupPersonalTools
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor

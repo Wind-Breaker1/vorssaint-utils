@@ -115,6 +115,8 @@ struct NotchControlsView: View {
         case .volume, .brightness, .keyboardLight, .music: EmptyView()
         }
     }
+
+
 }
 
 extension NotchControlItem {

@@ -279,6 +279,8 @@ struct NotchView: View {
         let geometry = service.expandedGeometry
         let band = NotchBand(geometry: geometry, contentWidth: service.contentSize.width)
         let wraps = geometry.pageTop == .wrapsCamera
+        let panelTopInset: CGFloat = geometry.headerTopInset
+        let panelBottomInset: CGFloat = NotchLayout.bottomInset
         return page
             .frame(width: service.contentSize.width, height: service.contentSize.height, alignment: .top)
             .clipShape(NotchPageClip(top: geometry.pageTopInset))
@@ -306,8 +308,8 @@ struct NotchView: View {
             }
             .environment(\.notchBand, band)
             .padding(.horizontal, NotchLayout.horizontalInset)
-            .padding(.top, geometry.headerTopInset)
-            .padding(.bottom, NotchLayout.bottomInset)
+            .padding(.top, panelTopInset)
+            .padding(.bottom, panelBottomInset)
             .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
             .contentShape(Rectangle())
             .contextMenu { islandMenu }
@@ -578,6 +580,12 @@ struct NotchView: View {
                     .notchBand(trailing: { NotchClearNotificationsButton() })
             case .downloads: NotchDownloadsView(size: pageSize)
             case .calendar: NotchCalendarView(size: pageSize)
+            case .notes:
+                Button("打开笔记") { service.select(.notes) }
+            case .reminders: NotchRemindersView()
+                .environment(\.colorScheme, .dark)
+            case .accounting: AccountingQuickSection()
+                .environment(\.colorScheme, .dark)
             case .controls: NotchControlsView(service: service, size: pageSize)
             case .mixer: NotchMixerView(size: pageSize)
             case .music: NotchMusicView(size: pageSize, extrasHeight: service.geometry.musicExtrasHeight)
@@ -835,6 +843,9 @@ extension NotchModule: PanelOrderItem {
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
+        case .notes: return "笔记"
+        case .reminders: return "待办"
+        case .accounting: return "记账"
         }
     }
 }

@@ -441,6 +441,7 @@ struct FeatureHubSettings: View {
         case .clipboardFiles: return hub.groupClipboardFiles
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
+        case .personalTools: return hub.groupPersonalTools
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
@@ -588,6 +589,7 @@ private extension FeatureGroup {
         case .clipboardFiles: return "doc.on.clipboard"
         case .sound: return "speaker.wave.2.fill"
         case .energyDisplay: return "bolt.fill"
+        case .personalTools: return "person.crop.square"
         case .tools: return "wrench.and.screwdriver.fill"
         case .dynamicIsland: return AppFeature.notch.symbolName
         case .monitor: return "chart.line.uptrend.xyaxis"
@@ -1200,6 +1202,9 @@ extension AppFeature {
         case .notchMascot: return FeatureStrings.notchMascot(language).title
         case .notch: return FeatureStrings.notch(language).title
         case .radialMenu: return FeatureStrings.radialMenu(language).pageTitle
+        case .reminders: return "提醒事项"
+        case .accounting: return "记账"
+        case .notes: return "笔记"
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .commandBar: return FeatureStrings.commandBar(language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
@@ -1286,6 +1291,9 @@ extension AppFeature {
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).hubDescription
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
+        case .reminders: return "查看、筛选和快速添加 macOS 提醒事项。"
+        case .accounting: return "记录日常收支，管理分类，查看月度流水与统计。"
+        case .notes: return "本地 Markdown 与 Excalidraw 笔记，支持附件、双向链接和属性。"
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode

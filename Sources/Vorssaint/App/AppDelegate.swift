@@ -69,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        WorkspaceQuickHotkey.shared.start()
         NSApp.setActivationPolicy(.accessory)
         // Before any window exists, so nothing is ever built with the wrong
         // appearance and then repainted.
@@ -223,6 +224,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             #if VORSSAINT_DEVELOPMENT
+            if CommandLine.arguments.contains("--preview-markdown-editor") {
+                if CommandLine.arguments.contains("--probe-markdown-editor") {
+                    self.openWorkspaceNote(NoteDocument(id: UUID(), title: "Markdown 功能验证", body: "# 中文编辑测试 🌏\n\n**加粗**、==高亮==、`let value = 1`。\n\n> [!warning] 注意\n> 中文提示框内容\n\n| 项目 | 状态 |\n| --- | --- |\n| 编辑器 | 测试中 |\n\n```js\nconst answer = 42;\n```\n\n```mermaid\ngraph TD\n A[开始] --> B[完成]\n```\n\n## 列表\n\n- [ ] 待验证事项\n- 普通列表\n", updatedAt: Date()))
+                    return
+                }
+                let store = NotesStore.shared
+                if store.notes.isEmpty { store.addNote("Markdown 编辑器体验") }
+                if let note = store.notes.first { self.openWorkspaceNote(note) }
+                return
+            }
             if CommandLine.arguments.contains("--preview-notch-tour") {
                 self.showUpdateHighlights(isReview: true)
                 return
