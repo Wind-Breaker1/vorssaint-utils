@@ -62,7 +62,6 @@ struct NotchRemindersView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder

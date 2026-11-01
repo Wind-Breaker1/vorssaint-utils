@@ -6,7 +6,8 @@ trap 'rm -rf "$notes_test_dir"' EXIT
 cat > "$notes_test_dir/main.swift" <<'SWIFT'
 import Foundation
 let root = URL(fileURLWithPath:CommandLine.arguments[1]).appendingPathComponent("Notes")
-let repository = NotesFileRepository(root:root)
+let indexRoot = root.deletingLastPathComponent().appendingPathComponent("LocalIndexes")
+let repository = NotesFileRepository(root:root, indexRoot:indexRoot)
 try repository.prepare()
 let id = UUID(), drawingID = UUID()
 var note = NoteDocument(id:id,title:"中文搜索 migration",body:"# 标题\n\n跨行内容\n---\n[[画板|\(drawingID.uuidString)]]\nsearchable long phrase",updatedAt:Date(timeIntervalSince1970:1700000000))
@@ -79,19 +80,19 @@ let target = root.deletingLastPathComponent().appendingPathComponent("Relocated"
 try FileManager.default.createDirectory(at:target,withIntermediateDirectories:true)
 let largeAttachment = repository.attachments.appendingPathComponent("large.bin")
 try Data(repeating:42,count:2_500_001).write(to:largeAttachment)
-let moved = try NotesDirectoryMigration.prepare(from:root,to:target)
+let moved = try NotesDirectoryMigration.prepare(from:root,to:target,indexRoot:indexRoot)
 assert(try moved.index.catalog().count == 2)
 assert(try Data(contentsOf:moved.repository.attachments.appendingPathComponent("large.bin")) == Data(contentsOf:largeAttachment))
 assert(FileManager.default.fileExists(atPath:root.path))
 do {
- _ = try NotesDirectoryMigration.prepare(from:root,to:target)
+ _ = try NotesDirectoryMigration.prepare(from:root,to:target,indexRoot:indexRoot)
  assertionFailure("non-empty target must be rejected")
 } catch {}
 let brokenTarget = root.deletingLastPathComponent().appendingPathComponent("BrokenTarget")
 try FileManager.default.createDirectory(at:brokenTarget,withIntermediateDirectories:true)
 try Data("corrupt".utf8).write(to:corrupt)
 do {
- _ = try NotesDirectoryMigration.prepare(from:root,to:brokenTarget)
+ _ = try NotesDirectoryMigration.prepare(from:root,to:brokenTarget,indexRoot:indexRoot)
  assertionFailure("corrupt note must abort relocation")
 } catch {}
 assert(try FileManager.default.contentsOfDirectory(atPath:brokenTarget.path).isEmpty)

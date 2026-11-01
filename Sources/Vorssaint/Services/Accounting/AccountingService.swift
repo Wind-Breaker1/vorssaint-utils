@@ -54,10 +54,12 @@ final class AccountingService: ObservableObject {
         .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/Vorssaint/Accounting", isDirectory: true)
     @Published private(set) var storagePath = UserDefaults.standard.string(forKey: "accounting.storagePath") ?? AccountingService.defaultRoot.path
     @Published private(set) var movingStorage = false
+    @Published private(set) var previousStorage = MigratedStorageSource.load(key: "accounting.previousStorage")
+    @Published private(set) var removingOldStorage = false
     private func storageURL() throws -> URL {
         if let bookmark = UserDefaults.standard.data(forKey: "accounting.storageBookmark") {
             var stale = false
-            let url = try URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope, .withoutUI], relativeTo: nil, bookmarkDataIsStale: &stale)
+            let url = try MigratedStorageSource.resolveBookmark(bookmark, isStale: &stale)
             guard !stale else { throw NSError(domain: "Accounting", code: 1, userInfo: [NSLocalizedDescriptionKey: "存储目录授权已变化，请重新选择目录"]) }
             return url
         }
@@ -69,10 +71,10 @@ final class AccountingService: ObservableObject {
         return Self.defaultRoot
     }
     func chooseStorageFolder() {
-        guard !movingStorage else { return }
+        guard !movingStorage, !removingOldStorage else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
-        panel.message = "选择空文件夹存放年度 JSON。现有 JSON 文件将校验后迁移到新位置，成功后移除原目录中的 JSON。可直接选择 iCloud Drive 中的文件夹，各设备选择同一目录。"
+        panel.message = "选择空文件夹存放年度 JSON。现有 JSON 文件将校验后迁移到新位置，成功后保留原 JSON，可在设置页手动删除。可直接选择 iCloud Drive 中的文件夹，各设备选择同一目录。"
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         movingStorage = true
         queue.async { [weak self] in
@@ -89,13 +91,20 @@ final class AccountingService: ObservableObject {
                           !FileManager.default.fileExists(atPath: Self.defaultRoot.path) else { throw error }
                     current = nil
                 }
+                let source = try current.map { try MigratedStorageSource(url: $0.root) }
                 let verified: AccountingRepository
                 if let current { verified = try current.moveStorage(to: destination) }
                 else {
                     guard try FileManager.default.contentsOfDirectory(at: destination, includingPropertiesForKeys: nil).isEmpty else {
-                        throw NSError(domain: "Accounting", code: 1, userInfo: [NSLocalizedDescriptionKey: "请选择空目录，避免覆盖已有文件"])
+                        throw NSError(domain: "Accounting", code: 1, userInfo: [NSLocalizedDescriptionKey: "请选择空目录，迁移不会覆盖已有文件"])
                     }
                     verified = try AccountingRepository(url: destination)
+                }
+                if let source {
+                    var sources = MigratedStorageSource.load(key: "accounting.previousStorage")
+                    sources.removeAll { $0.id == source.id }
+                    sources.append(source)
+                    try MigratedStorageSource.save(sources, key: "accounting.previousStorage")
                 }
                 UserDefaults.standard.set(bookmark, forKey: "accounting.storageBookmark")
                 UserDefaults.standard.set(destination.path, forKey: "accounting.storagePath")
@@ -104,12 +113,38 @@ final class AccountingService: ObservableObject {
             DispatchQueue.main.async {
                 self.movingStorage = false
                 switch result {
-                case .success: self.storagePath = destination.path; self.errorMessage = nil; self.refresh()
+                case .success:
+                    self.storagePath = destination.path
+                    self.previousStorage = MigratedStorageSource.load(key: "accounting.previousStorage")
+                    self.errorMessage = nil; self.refresh()
                 case .failure(let error): self.errorMessage = error.localizedDescription
                 }
             }
         }
     }
+    func removeOldStorage(_ source: MigratedStorageSource) {
+        guard !movingStorage, !removingOldStorage else { return }
+        removingOldStorage = true
+        queue.async { [self] in
+            let result = Result { () -> Void in
+                let url = try source.resolve(excluding: storageURL())
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                try AccountingRepository.removeMigratedJSON(at: url)
+                var sources = MigratedStorageSource.load(key: "accounting.previousStorage")
+                sources.removeAll { $0.id == source.id }
+                try MigratedStorageSource.save(sources, key: "accounting.previousStorage")
+            }
+            DispatchQueue.main.async { [self] in
+                removingOldStorage = false
+                switch result {
+                case .success: previousStorage = MigratedStorageSource.load(key: "accounting.previousStorage"); errorMessage = nil
+                case .failure(let error): errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
     func select(month: Date, kind: LedgerKind?, category: String) {
         self.month = month; self.kind = kind; self.category = category; limit = 100
         refresh()

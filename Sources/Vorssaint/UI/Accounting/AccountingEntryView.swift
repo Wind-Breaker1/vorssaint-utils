@@ -74,7 +74,6 @@ struct AccountingEntryView: View {
         }
         .padding(inline ? 12 : 24).frame(maxWidth: .infinity).frame(width: inline ? nil : 428)
         .frame(maxHeight: inline ? .infinity : nil, alignment: .top)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .onAppear { chooseCategory(); amountFocused = !inline }
         .onChange(of: kind) { _, _ in category = ""; chooseCategory() }
         .onChange(of: service.snapshot.categories) { _, _ in chooseCategory() }
@@ -91,14 +90,7 @@ struct AccountingEntryView: View {
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showingDatePicker, arrowEdge: .bottom) {
-                DatePicker("日期", selection: $date, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .focusable(false)
-                    .focusEffectDisabled()
-                    .blur(radius: 0.001)
-                    .background(DatePickerChromeSuppressor())
-                    .padding(12)
+                CalendarDatePicker(selection: $date)
             }
         }
     }

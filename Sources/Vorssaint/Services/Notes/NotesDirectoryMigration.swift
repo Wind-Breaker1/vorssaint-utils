@@ -2,14 +2,21 @@
 import Foundation
 
 /// Handles filesystem work only. NotesStore owns switching preferences and
-/// deleting the source after a verified destination has been activated.
+/// remembering the source for optional, explicit cleanup in Settings.
 enum NotesDirectoryMigration {
-    static func prepare(from source: URL, to target: URL) throws -> (repository: NotesFileRepository, index: NotesIndex) {
+    static func prepare(from source: URL, to target: URL, indexRoot: URL? = nil) throws -> (repository: NotesFileRepository, index: NotesIndex) {
         let source = source.resolvingSymlinksInPath().standardizedFileURL
         let target = target.resolvingSymlinksInPath().standardizedFileURL
         let fm = FileManager.default
         guard try fm.contentsOfDirectory(at: target, includingPropertiesForKeys: nil).isEmpty else {
             throw NSError(domain: "NotesStorage", code: 1, userInfo: [NSLocalizedDescriptionKey: "请选择空目录，避免覆盖已有文件"])
+        }
+        let original = NotesFileRepository(root: source, indexRoot: indexRoot)
+        // Materialize all cloud files before copying the source.
+        if let walker = fm.enumerator(at: source, includingPropertiesForKeys: nil) {
+            for case let file as URL in walker {
+                try original.requireDownloaded(NotesFileRepository.materializedURL(file))
+            }
         }
         var succeeded = false
         defer {
@@ -29,10 +36,11 @@ enum NotesDirectoryMigration {
             try verify(item, source: source, target: target)
             while let entry = enumerator?.nextObject() as? URL { try verify(entry, source: source, target: target) }
         }
-        let repository = NotesFileRepository(root: target)
+        let repository = NotesFileRepository(root: target, indexRoot: indexRoot)
         try repository.prepare()
         let database = try NotesIndex(url: repository.indexURL)
         try database.transaction {
+            try database.clear()
             for file in try repository.files() {
                 let note = try repository.read(file, loadAttachments: false)
                 try database.update(note)

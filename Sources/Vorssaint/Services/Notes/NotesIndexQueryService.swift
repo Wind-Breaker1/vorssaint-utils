@@ -17,7 +17,7 @@ final class NotesIndexQueryService {
     }
 
     func release() {
-        queue.sync { index = nil; url = nil }
+        queue.sync { index = nil }
     }
 
     func search(_ query: String, completion: @escaping (Result<[String], Error>) -> Void) {

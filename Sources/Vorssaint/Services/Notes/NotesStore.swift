@@ -7,12 +7,19 @@ final class NotesStore: ObservableObject {
     private static let defaultRoot = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/Vorssaint/Notes", isDirectory: true)
     static var root: URL { shared.repository.root }
-    @Published private(set) var storagePath = ""
+    @Published private(set) var storagePath = UserDefaults.standard.string(forKey: "notes.storagePath") ?? NotesStore.defaultRoot.path
     private var scopedRoot: URL?
     /// Lightweight metadata and excerpts only. Read a document when opening it.
     @Published private(set) var notes: [NoteDocument] = []
     @Published private(set) var saveError: String?
     @Published private(set) var rebuilding = false
+    @Published private(set) var movingStorage = false
+    @Published private(set) var previousStorage = MigratedStorageSource.load(key: "notes.previousStorage")
+    @Published private(set) var removingOldStorage = false
+    private var refreshing = false
+    private var refreshCompletions: [(Bool) -> Void] = []
+    private var storageGeneration = 0
+    private var noteGenerations: [UUID: Int] = [:]
     @Published private(set) var indexStatus = ""
     private var repository: NotesFileRepository
     private var index: NotesIndex?
@@ -27,9 +34,9 @@ final class NotesStore: ObservableObject {
         if let bookmark = UserDefaults.standard.data(forKey:"notes.storageBookmark") {
             var stale = false
             do {
-                location = try URL(resolvingBookmarkData:bookmark,options:[.withSecurityScope,.withoutUI],relativeTo:nil,bookmarkDataIsStale:&stale)
+                location = try MigratedStorageSource.resolveBookmark(bookmark, isStale: &stale)
             } catch {
-                repository = NotesFileRepository(root:Self.defaultRoot)
+                repository = NotesFileRepository(root: URL(fileURLWithPath: UserDefaults.standard.string(forKey: "notes.storagePath") ?? Self.defaultRoot.path))
                 saveError = "无法访问已配置的笔记目录，请重新选择目录：" + error.localizedDescription
                 return
             }
@@ -37,6 +44,7 @@ final class NotesStore: ObservableObject {
         repository = NotesFileRepository(root:location)
         if location.startAccessingSecurityScopedResource() { scopedRoot = location }
         storagePath = location.path
+        UserDefaults.standard.set(location.path, forKey: "notes.storagePath")
         do {
             // Only create our subdirectories; never fabricate an unavailable iCloud Drive.
             if UserDefaults.standard.data(forKey: "notes.storageBookmark") == nil {
@@ -51,17 +59,43 @@ final class NotesStore: ObservableObject {
             self.index = index
             queryService.configure(url: repository.indexURL)
             try refresh()
-            // The existing index makes the UI available immediately. Reconcile
-            // external file changes off the main thread after first render.
-            indexCoordinator.reconcile(repository: repository, index: index) { [weak self] error in
-                if let error { self?.saveError = error.localizedDescription }
-                else { try? self?.refresh() }
-            }
+
         } catch { saveError = error.localizedDescription }
     }
-    /// Copy and verify before switching. Never merge with an existing directory.
+    /// Refresh on opening/activation, preserving unloaded cloud documents in the index.
+    func refreshFromDisk(completion: @escaping (Bool) -> Void = { _ in }) {
+        guard !movingStorage, !rebuilding, let index else { completion(false); return }
+        refreshCompletions.append(completion)
+        guard !refreshing else { return }
+        let request = NotesFlushRequest()
+        NotificationCenter.default.post(name: .notesFlush, object: request)
+        guard !request.failed else { finishRefresh(false); return }
+        refreshing = true
+        let generation = storageGeneration
+        indexCoordinator.reconcile(repository: repository, index: index) { [weak self] result in
+            guard let self else { return }
+            guard generation == self.storageGeneration, !self.movingStorage else { self.finishRefresh(false); return }
+            do {
+                let pending = try result.get()
+                try self.refresh()
+                self.indexStatus = pending > 0 ? "正在下载 \(pending) 篇 iCloud 笔记，请稍后重新打开或刷新" : ""
+                self.saveError = nil
+                NotificationCenter.default.post(name: .notesIndexChanged, object: nil)
+                // Do not create an empty note while existing cloud content is downloading.
+                self.finishRefresh(pending == 0)
+            } catch { self.saveError = error.localizedDescription; self.finishRefresh(false) }
+        }
+    }
+    private func finishRefresh(_ success: Bool) {
+        refreshing = false
+        let completions = refreshCompletions
+        refreshCompletions.removeAll()
+        completions.forEach { $0(success) }
+    }
+
+    /// Copy and verify in the background; old files remain until explicit cleanup.
     func changeDirectory(to selected: URL) {
-        guard !rebuilding else { return }
+        guard !rebuilding, !movingStorage, !removingOldStorage else { return }
         let target = selected.resolvingSymlinksInPath().standardizedFileURL
         let source = repository.root.resolvingSymlinksInPath().standardizedFileURL
         guard target != source else { return }
@@ -69,52 +103,91 @@ final class NotesStore: ObservableObject {
             saveError = "新旧目录不能互相包含"; return
         }
         let request = NotesFlushRequest()
-        NotificationCenter.default.post(name:.notesFlush,object:request)
+        NotificationCenter.default.post(name: .notesFlush, object: request)
         guard !request.failed else { return }
-        queue.sync {}
-        writeGeneration += 1; publishedGeneration = writeGeneration
         let migrating = index != nil
-        let fm = FileManager.default
+        let indexRoot = repository.indexRoot
         let accessed = selected.startAccessingSecurityScopedResource()
-        var committed = false
-        defer { if accessed && !committed { selected.stopAccessingSecurityScopedResource() } }
-        do {
-            guard try fm.contentsOfDirectory(at:target,includingPropertiesForKeys:nil).isEmpty else {
-                throw NSError(domain:"NotesStorage",code:1,userInfo:[NSLocalizedDescriptionKey:"请选择空目录，避免覆盖已有文件"])
+        movingStorage = true
+        storageGeneration += 1
+        writeGeneration += 1; publishedGeneration = writeGeneration
+        saveError = nil
+        indexStatus = "正在迁移并校验笔记…"
+        queue.async { [self] in
+            let result = Result { () -> (NotesFileRepository, NotesIndex, Data, [NoteDocument], [String: [String]], MigratedStorageSource?) in
+                let fm = FileManager.default
+                guard try fm.contentsOfDirectory(at: target, includingPropertiesForKeys: nil).isEmpty else {
+                    throw NSError(domain: "NotesStorage", code: 1, userInfo: [NSLocalizedDescriptionKey: "请选择空目录，避免覆盖已有文件"])
+                }
+                let bookmark = try selected.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+                let oldSource = migrating ? try MigratedStorageSource(url: source) : nil
+                let prepared: (repository: NotesFileRepository, index: NotesIndex)
+                if migrating { prepared = try NotesDirectoryMigration.prepare(from: source, to: target, indexRoot: indexRoot) }
+                else {
+                    let next = NotesFileRepository(root: target, indexRoot: indexRoot)
+                    try next.prepare()
+                    prepared = (next, try NotesIndex(url: next.indexURL))
+                }
+                return (prepared.repository, prepared.index, bookmark, try prepared.index.catalog(), try prepared.index.relationships(), oldSource)
             }
-            let bookmark = try selected.bookmarkData(options:.withSecurityScope,includingResourceValuesForKeys:nil,relativeTo:nil)
-            let prepared: (repository: NotesFileRepository, index: NotesIndex)
-            if index != nil {
-                prepared = try NotesDirectoryMigration.prepare(from: source, to: target)
-            } else {
-                let next = NotesFileRepository(root: target)
-                try next.prepare()
-                prepared = (next, try NotesIndex(url: next.indexURL))
+            DispatchQueue.main.async { [self] in
+                switch result {
+                case .failure(let error):
+                    if accessed { selected.stopAccessingSecurityScopedResource() }
+                    movingStorage = false
+                    saveError = "目录迁移失败：" + error.localizedDescription
+                case .success(let (next, nextIndex, bookmark, catalog, relationships, oldSource)):
+                    do {
+                        var sources = previousStorage
+                        if let oldSource { sources.removeAll { $0.id == oldSource.id }; sources.append(oldSource) }
+                        try MigratedStorageSource.save(sources, key: "notes.previousStorage")
+                        UserDefaults.standard.set(bookmark, forKey: "notes.storageBookmark")
+                        let previousScope = scopedRoot
+                        repository = next; index = nextIndex
+                        queryService.configure(url: next.indexURL)
+                        scopedRoot = accessed ? selected : nil
+                        storagePath = target.path
+                        UserDefaults.standard.set(target.path, forKey: "notes.storagePath")
+                        notes = catalog; links = relationships
+                        noteGenerations.removeAll()
+                        previousStorage = sources
+                        previousScope?.stopAccessingSecurityScopedResource()
+                        movingStorage = false
+                        indexStatus = migrating ? "迁移完成，原文件已保留，可在下方手动删除" : "笔记保存目录已设置"
+                        NotificationCenter.default.post(name: .notesIndexChanged, object: nil)
+                    } catch {
+                        if accessed { selected.stopAccessingSecurityScopedResource() }
+                        movingStorage = false
+                        saveError = "保存新目录配置失败，原文件已保留：" + error.localizedDescription
+                    }
+                }
             }
-            let next = prepared.repository
-            let nextIndex = prepared.index
-            UserDefaults.standard.set(bookmark,forKey:"notes.storageBookmark")
-            index = nextIndex
-            repository = next
-            queryService.configure(url: next.indexURL)
-            let previousScope = scopedRoot
-            defer { previousScope?.stopAccessingSecurityScopedResource() }
-            scopedRoot = accessed ? selected : nil
-            committed = true
-            storagePath = target.path
-            try refresh()
-            NotificationCenter.default.post(name:.notesIndexChanged,object:nil)
-            do {
-                if migrating { try fm.removeItem(at:source) }
-                indexStatus = migrating ? "笔记目录已迁移，原目录已删除" : "笔记保存目录已设置"
-                saveError = nil
-            } catch {
-                saveError = "已切换至新目录，但原目录未能删除：" + error.localizedDescription
-            }
-        } catch {
-            saveError = "目录迁移失败：" + error.localizedDescription
         }
     }
+    func removeOldStorage(_ source: MigratedStorageSource) {
+        guard !movingStorage, !removingOldStorage else { return }
+        let active = repository.root
+        removingOldStorage = true
+        queue.async { [self] in
+            let result = Result { () -> Void in
+                let url = try source.resolve(excluding: active)
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+                var sources = MigratedStorageSource.load(key: "notes.previousStorage")
+                sources.removeAll { $0.id == source.id }
+                try MigratedStorageSource.save(sources, key: "notes.previousStorage")
+            }
+            DispatchQueue.main.async { [self] in
+                removingOldStorage = false
+                switch result {
+                case .success: previousStorage = MigratedStorageSource.load(key: "notes.previousStorage"); saveError = nil
+                case .failure(let error): saveError = error.localizedDescription
+                }
+            }
+        }
+    }
+
     private func refresh() throws {
         guard let index else { return }
         let snapshot = try queue.sync { (try index.catalog(), try index.relationships()) }
@@ -146,29 +219,42 @@ final class NotesStore: ObservableObject {
         persist(note, wait: wait, completion: completion)
     }
     private func persist(_ note: NoteDocument, wait: Bool, completion: @escaping (Bool) -> Void) {
-        guard let index else {
-            saveError = "笔记存储尚未就绪，无法保存"
+        guard !movingStorage, let index else {
+            saveError = movingStorage ? "正在迁移笔记，请稍后保存" : "笔记存储尚未就绪，无法保存"
             completion(false)
             return
         }
         let repository = repository
         writeGeneration += 1
         let generation = writeGeneration
+        let storage = storageGeneration
+        noteGenerations[note.id] = generation
         let write = {
-            Result { () -> Void in
+            Result { () -> [String] in
                 try repository.write(note)
                 try index.transaction {
                     try index.update(note)
                     try index.recordSignature(repository.signature(repository.url(for: note)), id: note.id)
                 }
+                return try index.outgoing(note.id)
             }
         }
-        let finish: (Result<Void, Error>) -> Void = { [self] result in
-            // A synchronous flush may already have published a newer write.
-            if generation >= publishedGeneration {
+        let finish: (Result<[String], Error>) -> Void = { [self] result in
+            if storage == storageGeneration, noteGenerations[note.id] == generation,
+               case .success(let outgoing) = result {
+                var summary = note
+                summary.body = note.type == "markdown" ? String(note.body.prefix(160)) : ""
+                notes.removeAll { $0.id == note.id }
+                notes.append(summary)
+                notes.sort { $0.updatedAt == $1.updatedAt ? $0.id.uuidString < $1.id.uuidString : $0.updatedAt > $1.updatedAt }
+                links[note.id.uuidString.lowercased()] = outgoing
+            }
+            if storage == storageGeneration, generation >= publishedGeneration {
                 publishedGeneration = generation
-                do { try result.get(); try refresh(); saveError = nil }
-                catch { saveError = error.localizedDescription; completion(false); return }
+                switch result {
+                case .success: saveError = nil
+                case .failure(let error): saveError = error.localizedDescription
+                }
             }
             completion((try? result.get()) != nil)
         }
@@ -181,6 +267,7 @@ final class NotesStore: ObservableObject {
         }
     }
     func removeNote(_ note: NoteDocument) {
+        guard !movingStorage else { saveError = "正在迁移笔记，请稍后删除"; return }
         do {
             guard let metadata = notes.first(where:{$0.id == note.id}), let index else { return }
             let file = repository.url(for:metadata)
@@ -188,6 +275,7 @@ final class NotesStore: ObservableObject {
             // Rename within the same directory instead of loading a large
             // Markdown/Excalidraw file into memory for rollback.
             try queue.sync {
+                try repository.requireDownloaded(file)
                 try FileManager.default.moveItem(at:file, to:backup)
                 do {
                     try index.transaction { try index.remove(note.id) }
@@ -199,6 +287,7 @@ final class NotesStore: ObservableObject {
             }
             // Invalidate queued UI publications from saves preceding deletion.
             writeGeneration += 1; publishedGeneration = writeGeneration
+            noteGenerations.removeValue(forKey: note.id)
             links.removeValue(forKey:note.id.uuidString.lowercased())
             notes.removeAll { $0.id == note.id }
             saveError = nil
@@ -212,7 +301,7 @@ final class NotesStore: ObservableObject {
         queryService.release()
     }
     func rebuildIndex() {
-        guard !rebuilding else { return }
+        guard !rebuilding, !movingStorage else { return }
         let request = NotesFlushRequest()
         NotificationCenter.default.post(name:.notesFlush,object:request)
         guard !request.failed else { return }
@@ -221,9 +310,11 @@ final class NotesStore: ObservableObject {
         queue.async { [self] in
             let result = Result { () -> Int in
                 let worker = try NotesIndex(url:repository.indexURL)
+                let files = try repository.files()
+                for file in files { try repository.requireDownloaded(file) }
                 try worker.transaction {
                     try worker.clear()
-                    for file in try repository.files() {
+                    for file in files {
                         let note = try repository.read(file,loadAttachments:false)
                         try worker.update(note)
                         try worker.recordSignature(repository.signature(file),id:note.id)

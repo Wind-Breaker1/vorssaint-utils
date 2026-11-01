@@ -2,7 +2,7 @@
 import Foundation
 import Darwin
 
-enum SystemDataPrivilegedOperation: String, Codable, CaseIterable {
+enum SystemDataPrivilegedOperation {
     case unifiedLogs, diagnosticReports, legacyASL, sharedCaches, localSnapshots
 }
 

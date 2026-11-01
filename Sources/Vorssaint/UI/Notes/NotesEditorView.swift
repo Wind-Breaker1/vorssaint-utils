@@ -6,7 +6,19 @@ import UniformTypeIdentifiers
 
 struct NotesEditorView: View {
     let note: NoteDocument
-    var body: some View { NoteWebEditor(note: note) }
+    @ObservedObject private var store = NotesStore.shared
+    var body: some View {
+        NoteWebEditor(note: note)
+            .allowsHitTesting(!store.movingStorage)
+            .overlay {
+                if store.movingStorage {
+                    ZStack {
+                        Color.black.opacity(0.35)
+                        ProgressView("正在迁移笔记…").padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+    }
 }
 private struct NoteWebEditor: NSViewRepresentable {
     let note: NoteDocument
@@ -24,7 +36,9 @@ private struct NoteWebEditor: NSViewRepresentable {
         if let root = Bundle.main.resourceURL?.appendingPathComponent("NoteWeb") { web.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root) }
         return web
     }
-    func updateNSView(_ web: WKWebView, context: Context) {}
+    func updateNSView(_ web: WKWebView, context: Context) {
+        if NotesStore.shared.movingStorage { web.window?.makeFirstResponder(nil) }
+    }
     static func dismantleNSView(_ web: WKWebView, coordinator: Coordinator) {
         coordinator.save(); web.stopLoading(); web.configuration.userContentController.removeScriptMessageHandler(forName: "notes"); web.navigationDelegate = nil
         web.configuration.userContentController.removeScriptMessageHandler(forName: "noteClipboard", contentWorld: .page)
@@ -41,6 +55,7 @@ private struct NoteWebEditor: NSViewRepresentable {
             super.init()
             NotificationCenter.default.addObserver(self, selector: #selector(openDocument(_:)), name: .notesOpenDocument, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(flush(_:)), name: .notesFlush, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(activated), name: NSApplication.didBecomeActiveNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(indexChanged), name: .notesIndexChanged, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(flush(_:)), name: NSApplication.willTerminateNotification, object: nil)
         }
@@ -49,14 +64,25 @@ private struct NoteWebEditor: NSViewRepresentable {
             guard let target = notification.object as? NoteDocument else { return }
             save()
             guard !dirty else { return }
-            note = NotesStore.shared.document(target.id) ?? target
+            guard let document = NotesStore.shared.document(target.id) else { return }
+            note = document
             if ready { load() }
         }
         private var ready = false
+        @objc private func activated() { NotesStore.shared.refreshFromDisk() }
         @objc private func indexChanged() {
-            save()
-            guard !dirty else { return }
-            if let document = NotesStore.shared.document(note.id) { note = document; if ready { load() } }
+            guard ready, !dirty else { return }
+            let store = NotesStore.shared
+            call("window.notesApp.catalog(notes)", ["notes": catalog])
+            if !store.notes.contains(where: { $0.id == note.id }) {
+                if let next = store.notes.first, let document = store.document(next.id) { note = document; load() }
+                else { call("window.notesApp.clear()") }
+                return
+            }
+            guard let document = store.document(note.id) else { return }
+            let changed = document.title != note.title || document.body != note.body || document.tags != note.tags || document.properties != note.properties || document.type != note.type
+            note = document
+            if changed { load() }
         }
         @objc private func flush(_ notification: Notification) {
             save()
@@ -88,10 +114,13 @@ private struct NoteWebEditor: NSViewRepresentable {
             guard let web else { return }
             Task { @MainActor in do { _ = try await web.callAsyncJavaScript(script, arguments: arguments, in: nil, contentWorld: .page) } catch { NSLog("Note editor: %@", error.localizedDescription) } }
         }
+        private var catalog: [[String: Any]] {
+            NotesStore.shared.notes.map { ["id": $0.id.uuidString, "title": $0.title, "body": $0.body, "type": $0.type, "tags": $0.tags, "outgoingIDs": NotesStore.shared.outgoing($0.id)] }
+        }
         func load(heading: String = "") {
             let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
             guard let data = try? encoder.encode(note), let value = try? JSONSerialization.jsonObject(with: data) else { return }
-            call("window.notesApp.load(note, notes, heading); requestAnimationFrame(() => requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'})))", ["note": value, "heading": heading, "notes": NotesStore.shared.notes.map { ["id": $0.id.uuidString, "title": $0.title, "body": $0.body, "type": $0.type, "tags": $0.tags, "outgoingIDs": NotesStore.shared.outgoing($0.id)] }])
+            call("window.notesApp.load(note, notes, heading); requestAnimationFrame(() => requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'})))", ["note": value, "heading": heading, "notes": catalog])
         }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
             guard message.name == "noteClipboard", message.frameInfo.isMainFrame,
@@ -116,7 +145,7 @@ private struct NoteWebEditor: NSViewRepresentable {
             }
         }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true, let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+            guard !NotesStore.shared.movingStorage, message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true, let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
             switch type {
             case "ready": ready = true; load()
             case "searchNotes":

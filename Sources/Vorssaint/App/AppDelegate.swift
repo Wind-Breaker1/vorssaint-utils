@@ -431,6 +431,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private static let menuBarLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                            category: "menubar")
 
+    private static let updateLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                          category: "update")
+
     private func iconIsOnScreen() -> Bool {
         // A hidden item is not on screen, whatever frame its window last had.
         guard statusController?.statusItem.isVisible == true,
@@ -2608,7 +2611,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.setFrameOrigin(NSPoint(x: x.rounded(), y: y.rounded()))
     }
 
-    /// Shows upstream release notes without downloading or replacing this build.
+    /// The pre-install update preview, shown before any download from BOTH the
+    /// Settings install button and the menu panel's update banner (the blue
+    /// button most people use), so the changelog is seen first unless the
+    /// person chose to skip it. In the Developer build `downloadAndInstall()`
+    /// is a no-op, so confirming is safe.
     func showUpdatePreview() {
         guard case let .available(version) = UpdateService.shared.state else { return }
         if let window = updatePreviewWindow {
@@ -2617,10 +2624,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             window.makeKeyAndOrderFront(nil)
             return
         }
+        // The panel stays open, so its banner shows the download's progress.
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.showReleaseNotesBeforeUpdate) else {
+            if AppInfo.isDeveloperBuild {
+                // The Developer build never installs; say so instead of
+                // ignoring the click.
+                Self.updateLog.log("release notes skipped; the Developer build does not install updates")
+            }
+            UpdateService.shared.downloadAndInstall()
+            return
+        }
         closePopover()
         let host = NSHostingController(rootView: UpdatePreviewView(
             version: version,
             notes: UpdateService.shared.availableNotes,
+            onUpdate: { [weak self] in
+                self?.updatePreviewWindow?.close()
+                UpdateService.shared.downloadAndInstall()
+            },
             onCancel: { [weak self] in
                 self?.updatePreviewWindow?.close()
             }

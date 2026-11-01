@@ -73,10 +73,7 @@ final class SystemDataService: ObservableObject {
             let combined = Self.inventory(cancellation: cancellation)
             DispatchQueue.main.async {
                 guard let self, self.generation == request, !cancellation.isCancelled else { return }
-                self.items = combined.sorted {
-                    if $0.category != $1.category { return $0.category.rawValue < $1.category.rawValue }
-                    return $0.size > $1.size
-                }
+                self.items = Self.sortedItems(combined)
                 self.cancellation = nil
                 self.phase = .results
             }
@@ -212,20 +209,23 @@ final class SystemDataService: ObservableObject {
             let notice = remainingCommands.isEmpty ? nil : remainingCommands.map { item in
                 item.id == "pkg-pnpm" ? "pnpm store prune 已执行完成。此项显示整个存储的占用，并非全部可回收容量；命令保留的内容不会强制删除。" : item.name + "：清理命令已执行，仍有保留内容。"
             }.joined(separator: "\n")
-            let message = failures.isEmpty ? nil : failures.joined(separator: "\n")
             DispatchQueue.main.async {
                 guard let self, self.generation == request, !cancellation.isCancelled else { return }
                 self.cancellation = nil
-                self.items = results.sorted {
-                    if $0.category != $1.category { return $0.category.rawValue < $1.category.rawValue }
-                    return $0.size > $1.size
-                }
+                self.items = Self.sortedItems(results)
                 self.progress = nil
                 self.lastNotice = notice
-                self.lastError = message
+                self.lastError = cleanupErrors
                 self.phase = .results
             }
         })
+    }
+
+    private static func sortedItems(_ items: [Item]) -> [Item] {
+        items.sorted {
+            if $0.category != $1.category { return $0.category.rawValue < $1.category.rawValue }
+            return $0.size > $1.size
+        }
     }
 
     private static func unifiedLogItem() -> Item? {
@@ -481,10 +481,11 @@ final class SystemDataService: ObservableObject {
 
     private static func withoutOverlaps(_ items: [Item]) -> [Item] {
         let prefixes = ["dynamic-", "tool-hidden-", "tool-cache-", "user-caches-"]
+        let claims = items.map { (id: $0.id, paths: $0.claimedPaths.map(realPath)) }
         return items.filter { item in
             guard prefixes.contains(where: item.id.hasPrefix) else { return true }
             let prefix = realPath(item.path) + "/"
-            return !items.contains { other in other.id != item.id && other.claimedPaths.contains { realPath($0).hasPrefix(prefix) } }
+            return !claims.contains { other in other.id != item.id && other.paths.contains { $0.hasPrefix(prefix) } }
         }
     }
 

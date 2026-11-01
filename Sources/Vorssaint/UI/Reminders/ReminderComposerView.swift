@@ -51,14 +51,7 @@ struct WorkspaceTaskComposer: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .popover(isPresented: $showingCustomDatePicker, arrowEdge: .bottom) {
-                    DatePicker("截止日期", selection: Binding(get: { dueDate ?? Date() }, set: { dueDate = $0 }), displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .labelsHidden()
-                        .focusable(false)
-                        .focusEffectDisabled()
-                        .blur(radius: 0.001)
-                        .background(DatePickerChromeSuppressor())
-                        .padding(12)
+                    CalendarDatePicker(selection: Binding(get: { dueDate ?? Date() }, set: { dueDate = $0 }))
                         .background(PopoverWindowConfigurator())
                 }
             }
@@ -111,36 +104,6 @@ struct WorkspaceTaskComposer: View {
         let weekday = calendar.component(.weekday, from: start)
         let days = (7 - weekday + 7) % 7 + 7
         return calendar.date(byAdding: .day, value: days, to: start) ?? start
-    }
-}
-
-struct DatePickerChromeSuppressor: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { SuppressorView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    private final class SuppressorView: NSView {
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                var node: NSView? = self.superview
-                while let current = node {
-                    Self.suppress(in: current)
-                    node = current.superview
-                }
-            }
-        }
-
-        private static func suppress(in view: NSView) {
-            if let control = view as? NSControl {
-                control.focusRingType = .none
-                if let picker = control as? NSDatePicker {
-                    picker.isBordered = false
-                    picker.drawsBackground = false
-                }
-            }
-            view.subviews.forEach { suppress(in: $0) }
-        }
     }
 }
 

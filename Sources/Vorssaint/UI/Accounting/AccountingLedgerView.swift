@@ -78,7 +78,6 @@ struct AccountingLedgerView: View {
                 Text(error).font(.caption).foregroundStyle(.red).padding(10)
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
         .sheet(item: $edit) { entry in AccountingEntryView(entry: entry) { edit = nil } }
         .alert("删除这笔账目？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("取消", role: .cancel) { deleting = nil }

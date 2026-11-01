@@ -23,13 +23,17 @@ extension AppDelegate {
     func openNotesWindow() {
         guard AppFeature.notes.isAvailable else { return }
         if let window = Self.workspaceNoteWindow {
+            NotesStore.shared.refreshFromDisk()
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
         let store = NotesStore.shared
-        if store.notes.isEmpty { store.addNote("未命名笔记") }
-        if let note = store.notes.first { openWorkspaceNote(note) }
+        store.refreshFromDisk { [weak self] complete in
+            guard AppFeature.notes.isAvailable else { return }
+            if complete && store.notes.isEmpty { store.addNote("未命名笔记") }
+            if let note = store.notes.first { self?.openWorkspaceNote(note) }
+        }
     }
 
     func openWorkspaceNote(_ requested: NoteDocument) {

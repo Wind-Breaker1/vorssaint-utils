@@ -6,9 +6,10 @@ final class NotesIndexCoordinator {
 
     init(queue: DispatchQueue) { self.queue = queue }
 
-    func reconcile(repository: NotesFileRepository, index: NotesIndex, completion: @escaping (Error?) -> Void) {
+    func reconcile(repository: NotesFileRepository, index: NotesIndex, completion: @escaping (Result<Int, Error>) -> Void) {
         queue.async {
             do {
+                var pendingDownloads = 0
                 try index.transaction {
                     let signatures = try index.signatures()
                     let files = try repository.files()
@@ -17,6 +18,7 @@ final class NotesIndexCoordinator {
                         try index.remove(old.id)
                     }
                     for file in files {
+                        guard try repository.isDownloaded(file) else { pendingDownloads += 1; continue }
                         let signature = try repository.signature(file)
                         let id = file.deletingPathExtension().lastPathComponent.lowercased()
                         if signatures[id] != signature {
@@ -26,9 +28,10 @@ final class NotesIndexCoordinator {
                         }
                     }
                 }
-                DispatchQueue.main.async { completion(nil) }
+                let pending = pendingDownloads
+                DispatchQueue.main.async { completion(.success(pending)) }
             } catch {
-                DispatchQueue.main.async { completion(error) }
+                DispatchQueue.main.async { completion(.failure(error)) }
             }
         }
     }

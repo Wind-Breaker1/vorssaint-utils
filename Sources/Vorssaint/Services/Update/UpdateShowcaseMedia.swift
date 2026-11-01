@@ -5,7 +5,6 @@ import Combine
 import Foundation
 
 enum UpdateShowcaseInfo {
-    static let downloadCeilingBytes: Int64 = 200 * 1024 * 1024
     static let releaseVersion = "3.1.4"
     static let mediaAssetName = "vorssaint-3.1.4-showcase-1.mp4"
     static let mediaSHA256 = "88031b2b48708b8eb96248fef1143432a0600382b59ad5ea39e0746af27ab9e8"
@@ -97,7 +96,7 @@ final class UpdateShowcaseMediaLoader: ObservableObject {
         let delegate: BoundedUpdateDownloadDelegate
         do {
             delegate = try BoundedUpdateDownloadDelegate(
-                byteLimit: UpdateShowcaseInfo.downloadCeilingBytes,
+                byteLimit: UpdateInstallerSupport.downloadCeilingBytes,
                 progress: { _, _ in },
                 completion: { [weak self] tempURL, response, error in
                     guard let self else { return }

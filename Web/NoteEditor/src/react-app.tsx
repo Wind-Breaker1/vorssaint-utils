@@ -62,6 +62,7 @@ async function upload(file: File): Promise<string | null> {
   });
 }
 let load: (data: Stored, notes: Card[], heading?: string) => void = () => {};
+let updateCatalog: (notes: Card[]) => void = () => {};
 let insert: (text: string) => void = () => {};
 let setStatus: (text: string) => void = () => {};
 let clear: () => void = () => {};
@@ -179,6 +180,7 @@ function App() {
       note?.type === "excalidraw" ? [] : extractMarkdownHeadings(deferred),
     [deferred, note?.type],
   );
+  updateCatalog = (list) => setNotes(list);
   load = (data, list, anchor) => {
     previewRef.current?.scrollToLine(1);
     setNote(decode(data));
@@ -558,6 +560,7 @@ root.render(<App />);
   searchResult: (request: string, ids: string[] | null) =>
     deliverSearch(request, ids),
   clear: () => clear(),
+  catalog: (list: Card[]) => updateCatalog(list),
   load: (data: Stored, list: Card[], heading?: string) =>
     load(data, list, heading),
   insert: (text: string) => insert(text),

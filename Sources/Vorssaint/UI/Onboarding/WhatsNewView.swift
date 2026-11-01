@@ -5,13 +5,18 @@ import AppKit
 import AVKit
 import SwiftUI
 
-/// Read-only upstream release notes for the customized build.
+/// Pre-install preview window content: shows the next version's full changelog —
+/// the same notes that ship with the release — so the user can decide before any
+/// download starts. Opened from both the Settings install button and the menu
+/// panel's update banner. Reuses `ReleaseNotesContent`.
 struct UpdatePreviewView: View {
     let version: String
     let notes: String?
+    var onUpdate: () -> Void
     var onCancel: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @State private var skipNextTime = false
 
     private var release: ReleaseNotes {
         // The release body is the changelog section without its `## [..]` header;
@@ -43,13 +48,21 @@ struct UpdatePreviewView: View {
             Divider()
 
             HStack(spacing: 12) {
-                Text(FeatureStrings.upstreamUpdateNotice(l10n.language))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle(FeatureStrings.whatsNew(l10n.language).skipPreviewCheckbox, isOn: $skipNextTime)
+                    .toggleStyle(.checkbox)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Button(l10n.s.menuClose) { onCancel() }
+                Button(l10n.s.uninstallerCancel) { onCancel() }
                     .keyboardShortcut(.cancelAction)
+                Button(l10n.s.updateInstallButton) {
+                    // Saved only on Update: ticking the box and then cancelling
+                    // must not turn the next update into a silent install.
+                    if skipNextTime {
+                        UserDefaults.standard.set(false, forKey: DefaultsKey.showReleaseNotesBeforeUpdate)
+                    }
+                    onUpdate()
+                }
+                .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
             }
             .padding(16)

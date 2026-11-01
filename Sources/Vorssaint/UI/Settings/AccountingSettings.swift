@@ -10,13 +10,18 @@ struct AccountingSettings: View {
     @State private var name = ""
     @State private var error: String?
     @State private var saving = false
+    @State private var cleanupSources: [MigratedStorageSource] = []
     var body: some View {
         Form {
             Section("记账") {
                 LabeledContent("存储方式", value: "年度 JSON · 人民币")
                 LabeledContent("保存位置", value: service.storagePath)
-                Button(service.movingStorage ? "正在迁移并校验…" : "更改保存位置…") { service.chooseStorageFolder() }
-                    .disabled(service.movingStorage)
+                HStack {
+                    Button(service.movingStorage ? "正在迁移并校验…" : "更改保存位置…") { service.chooseStorageFolder() }
+                        .disabled(service.movingStorage || service.removingOldStorage)
+                    Button("删除旧数据", role: .destructive) { cleanupSources = service.previousStorage }
+                        .disabled(service.previousStorage.isEmpty || service.movingStorage || service.removingOldStorage)
+                }
                 Text("可直接保存到 iCloud Drive 文件夹，各设备选择同一位置即可。记录收入与支出，不管理账户。")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
@@ -61,6 +66,15 @@ struct AccountingSettings: View {
                 Section { Text(message).foregroundStyle(.red) }
             }
         }.formStyle(.grouped)
+        .confirmationDialog("删除旧目录中的记账 JSON？", isPresented: Binding(get: { !cleanupSources.isEmpty }, set: { if !$0 { cleanupSources = [] } })) {
+            ForEach(cleanupSources) { source in
+                Button(cleanupSources.count == 1 ? "删除旧数据" : source.path, role: .destructive) {
+                    service.removeOldStorage(source); cleanupSources = []
+                }
+            }
+        } message: {
+            Text(cleanupSources.count == 1 ? cleanupSources[0].path + "\n仅删除旧 JSON，其他文件保留。" : "选择要清理的旧目录。当前保存目录不受影响。")
+        }
     }
     private func reset() { editing = nil; name = ""; error = nil }
     private func save() {

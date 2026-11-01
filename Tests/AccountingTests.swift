@@ -68,6 +68,8 @@ enum AccountingTests {
             try storageMove(suite, root: root)
             try sharedDirectory(suite, root: root)
             try simpleAnnualFiles(suite, root: root)
+            try manualCleanup(suite, root: root)
+            try monthlyReads(suite, root: root)
         } catch { suite.expect(false, "JSON repository test failed: \(error)") }
     }
     private static func storageMove(_ suite: TestSuite, root: URL) throws {
@@ -81,7 +83,7 @@ enum AccountingTests {
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
         let moved = try repository.moveStorage(to: destination)
         suite.expect(try moved.snapshot(month: .now, limit: 100, kind: nil, category: "").expense == 1234, "moving JSON preserves financial data")
-        suite.expect(try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil).isEmpty, "successful migration removes source JSON")
+        suite.expect(try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil).count == files.count, "successful migration retains source JSON until manual cleanup")
         for (name, data) in original { suite.expect(try Data(contentsOf: destination.appendingPathComponent(name)) == data, "migration preserves JSON bytes: \(name)") }
         let nonempty = root.appendingPathComponent("Nonempty")
         try FileManager.default.createDirectory(at: nonempty, withIntermediateDirectories: true)
@@ -145,6 +147,44 @@ enum AccountingTests {
         try Data("broken".utf8).write(to: populated)
         do { try repository.saveEntry(id: "new", amount: 100, category: category, date: next, note: ""); suite.expect(false, "corrupt annual file must reject writes") }
         catch { suite.expect(try Data(contentsOf: populated) == Data("broken".utf8), "corrupt JSON stays intact instead of being replaced") }
+    }
+
+    private static func manualCleanup(_ suite: TestSuite, root: URL) throws {
+        let source = root.appendingPathComponent("ManualSource")
+        let target = root.appendingPathComponent("ManualTarget")
+        let repository = try AccountingRepository(url: source)
+        let category = try repository.snapshot(month: .now, limit: 100, kind: nil, category: "").categories.first!.id
+        try repository.saveEntry(id: "manual", amount: 123, category: category, date: .now, note: "")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        let moved = try repository.moveStorage(to: target)
+        suite.expect(try repository.snapshot(month: .now, limit: 100, kind: nil, category: "").count == 1, "source remains readable after relocation")
+        try Data("keep".utf8).write(to: source.appendingPathComponent("readme.txt"))
+        try AccountingRepository.removeMigratedJSON(at: source)
+        suite.expect(try FileManager.default.contentsOfDirectory(atPath: source.path) == ["readme.txt"], "manual cleanup removes JSON only")
+        suite.expect(try moved.snapshot(month: .now, limit: 100, kind: nil, category: "").count == 1, "manual cleanup does not affect active destination")
+    }
+
+    private static func monthlyReads(_ suite: TestSuite, root: URL) throws {
+        let previousZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(secondsFromGMT: 8 * 3600)!
+        defer { NSTimeZone.default = previousZone }
+        let repository = try AccountingRepository(url: root.appendingPathComponent("MonthlyReads"))
+        let formatter = ISO8601DateFormatter()
+        let month = formatter.date(from: "2026-01-15T12:00:00Z")!
+        let category = try repository.snapshot(month: month, limit: 100, kind: nil, category: "").categories.first!.id
+        try repository.saveEntry(id: "utc-december", amount: 100, category: category, date: formatter.date(from: "2025-12-31T20:00:00Z")!, note: "local January")
+        try repository.saveEntry(id: "utc-january", amount: 200, category: category, date: month, note: "January")
+        try Data("broken unrelated year".utf8).write(to: repository.root.appendingPathComponent("2020.json"))
+        let snapshot = try repository.snapshot(month: month, limit: 100, kind: nil, category: "")
+        suite.expect(snapshot.count == 2, "local January reads both UTC boundary years and ignores unrelated years")
+        try Data("placeholder".utf8).write(to: repository.root.appendingPathComponent(".2019.json.icloud"))
+        suite.expect(try repository.snapshot(month: month, limit: 100, kind: nil, category: "").count == 2, "unrelated cloud placeholders do not block monthly display")
+        let legacy = Data(#"{"schemaVersion":1,"year":2026,"revisions":[]}"#.utf8)
+        try legacy.write(to: repository.root.appendingPathComponent("2026.json"))
+        do {
+            _ = try repository.snapshot(month: month, limit: 100, kind: nil, category: "")
+            suite.expect(false, "revision JSON is no longer accepted")
+        } catch { suite.expect(try Data(contentsOf: repository.root.appendingPathComponent("2026.json")) == legacy, "unsupported JSON is not converted or overwritten") }
     }
 
 }

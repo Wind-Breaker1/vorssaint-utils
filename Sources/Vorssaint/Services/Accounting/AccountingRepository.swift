@@ -7,19 +7,6 @@ private struct LedgerYearFile: Codable {
     var entries: [LedgerEntry]
 }
 
-/// Read-only compatibility with the earlier, unshipped revision-based format.
-private struct LegacyLedgerYear: Decodable {
-    struct Revision: Decodable {
-        var id: String
-        var parents: [String]
-        var deleted: Bool
-        var entry: LedgerEntry
-    }
-    var schemaVersion: Int
-    var year: Int
-    var revisions: [Revision]
-}
-
 /// Serial-queue confined. iCloud transports ordinary coordinated JSON files.
 final class AccountingRepository {
     let root: URL
@@ -89,33 +76,26 @@ final class AccountingRepository {
     private func readYear(_ url: URL, year: Int) throws -> [LedgerEntry] {
         try ensureDownloaded(url)
         let data = try Data(contentsOf: url)
-        let entries: [LedgerEntry]
-        if let file = try? decoder.decode(LedgerYearFile.self, from: data) {
-            guard file.schemaVersion == 2, file.year == year else { throw failure("不支持的年度文件格式") }
-            entries = file.entries
-        } else {
-            let old = try decoder.decode(LegacyLedgerYear.self, from: data)
-            guard old.schemaVersion == 1, old.year == year else { throw failure("不支持的年度文件格式") }
-            let superseded = Set(old.revisions.flatMap(\.parents))
-            let heads = old.revisions.filter { !superseded.contains($0.id) }
-            guard Dictionary(grouping: heads, by: { $0.entry.id }).values.allSatisfy({ $0.count == 1 }) else {
-                throw failure("旧格式账本仍有未处理的冲突，原文件已保留，未转换")
-            }
-            entries = heads.filter { !$0.deleted }.map(\.entry)
-        }
+        let file = try decoder.decode(LedgerYearFile.self, from: data)
+        guard file.schemaVersion == 2, file.year == year else { throw failure("不支持的年度文件格式") }
+        let entries = file.entries
         guard Set(entries.map(\.id)).count == entries.count,
               entries.allSatisfy({ !$0.id.isEmpty && $0.amount > 0 && $0.amount <= 999_999_999_999 && $0.date.timeIntervalSince1970.isFinite }) else { throw failure("账目内容无效，原文件未改写") }
         return entries
     }
-    private func load() throws -> [Int: [LedgerEntry]] {
+    private func load(years: Set<Int>? = nil) throws -> [Int: [LedgerEntry]] {
         var files: [Int: [LedgerEntry]] = [:]
         for url in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
             if url.pathExtension == "icloud" {
                 let name = String(url.lastPathComponent.dropFirst().dropLast(7))
-                if name.hasSuffix(".json") { try ensureDownloaded(root.appendingPathComponent(name)) }
+                let stem = (name as NSString).deletingPathExtension
+                if name.hasSuffix(".json"), stem.count == 4, let year = Int(stem), (years?.contains(year) ?? true) {
+                    try ensureDownloaded(root.appendingPathComponent(name))
+                }
             }
             guard url.pathExtension == "json", url.deletingPathExtension().lastPathComponent.count == 4,
-                  let year = Int(url.deletingPathExtension().lastPathComponent) else { continue }
+                  let year = Int(url.deletingPathExtension().lastPathComponent),
+                  (years?.contains(year) ?? true) else { continue }
             files[year] = try readYear(url, year: year)
         }
         let entries = files.values.flatMap { $0 }
@@ -130,10 +110,6 @@ final class AccountingRepository {
             if FileManager.default.fileExists(atPath: url.path) {
                 let previous = try Data(contentsOf: url)
                 if previous == data { continue }
-                if (try? decoder.decode(LegacyLedgerYear.self, from: previous)) != nil {
-                    let backup = root.appendingPathComponent("\(year).revision-backup.json")
-                    if !FileManager.default.fileExists(atPath: backup.path) { try write(previous, to: backup) }
-                }
             }
             try write(data, to: url)
         }
@@ -145,28 +121,27 @@ final class AccountingRepository {
     }
     private func makeSnapshot(month: Date, limit: Int, kind: LedgerKind?, category: String) throws -> LedgerSnapshot {
         let interval = Calendar.current.dateInterval(of: .month, for: month)!
-        let stored = try load().values.flatMap { $0 }
+        // A local-calendar month can straddle two UTC storage years.
+        let years = Set([year(interval.start), year(interval.end.addingTimeInterval(-1))])
+        let stored = try load(years: years).values.flatMap { $0 }
         try reloadCategories(entries: stored)
+        let names = Dictionary(categories.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         let renamed: [LedgerEntry] = stored.map { original -> LedgerEntry in
             var entry = original
-            if let cat = categories.first(where: { $0.id == entry.categoryID }) {
-                entry = LedgerEntry(id: entry.id, amount: entry.amount, categoryID: cat.id, categoryName: cat.name, kind: entry.kind, date: entry.date, note: entry.note)
+            if let name = names[entry.categoryID] {
+                entry = LedgerEntry(id: entry.id, amount: entry.amount, categoryID: entry.categoryID, categoryName: name, kind: entry.kind, date: entry.date, note: entry.note)
             }
             return entry
         }
         let filtered: [LedgerEntry] = renamed.filter { $0.date >= interval.start && $0.date < interval.end && (kind == nil || $0.kind == kind) && (category.isEmpty || $0.categoryID == category) }
         let entries = filtered.sorted { $0.date == $1.date ? $0.id < $1.id : $0.date > $1.date }
-        var available = categories
-        for entry in entries where !available.contains(where: { $0.id == entry.categoryID }) {
-            available.append(LedgerCategory(id: entry.categoryID, name: entry.categoryName, kind: entry.kind, archived: false))
-        }
         let totals: [LedgerCategoryTotal] = Dictionary(grouping: entries, by: \.categoryID).map { id, values in
             LedgerCategoryTotal(id: id, name: values[0].categoryName, kind: values[0].kind, amount: values.reduce(0) { $0 + $1.amount })
         }.sorted { $0.amount > $1.amount }
         let daily: [LedgerDailyTotal] = Dictionary(grouping: entries, by: { "\(Calendar.current.component(.day, from: $0.date))-\($0.kind.rawValue)" }).values.map { values in
             LedgerDailyTotal(day: Calendar.current.component(.day, from: values[0].date), kind: values[0].kind, amount: values.reduce(0) { $0 + $1.amount })
         }.sorted { $0.day < $1.day }
-        return LedgerSnapshot(dailyTotals: daily, categories: available.sorted { $0.archived == $1.archived ? $0.name < $1.name : !$0.archived }, entries: Array(entries.prefix(max(0, limit))), totals: totals, count: entries.count)
+        return LedgerSnapshot(dailyTotals: daily, categories: categories.sorted { $0.archived == $1.archived ? $0.name < $1.name : !$0.archived }, entries: Array(entries.prefix(max(0, limit))), totals: totals, count: entries.count)
     }
     func saveEntry(id: String, amount: Int64, category: String, date: Date, note: String) throws {
         guard amount > 0, amount <= 999_999_999_999, date.timeIntervalSince1970.isFinite else { throw failure("金额或日期无效") }
@@ -178,17 +153,12 @@ final class AccountingRepository {
             let entry = LedgerEntry(id: id, amount: amount, categoryID: cat.id, categoryName: cat.name, kind: cat.kind, date: date, note: note.trimmingCharacters(in: .whitespacesAndNewlines))
             let newYear = self.year(date)
             let oldYear = files.first(where: { $0.value.contains(where: { $0.id == id }) })?.key
-            var changed: [Int: [LedgerEntry]] = [:]
-            if let oldYear, oldYear != newYear {
-                changed[oldYear] = files[oldYear]?.filter { $0.id != id }
-            }
             files[newYear, default: []].removeAll { $0.id == id }
             files[newYear, default: []].append(entry)
-            changed[newYear] = files[newYear]
             // Write the destination year first: interruption may leave a visible
             // duplicate, but never removes the only copy of a moved entry.
             try self.persist([newYear: files[newYear] ?? []])
-            if let oldYear, oldYear != newYear, let oldEntries = changed[oldYear] {
+            if let oldYear, oldYear != newYear, let oldEntries = files[oldYear]?.filter({ $0.id != id }) {
                 try self.persist([oldYear: oldEntries])
             }
         }
@@ -219,13 +189,14 @@ final class AccountingRepository {
         } }
     }
 
-    /// Transfer JSON bytes unchanged, verify before deleting any source file.
+    /// Copy and validate the destination. Source JSON remains until explicit cleanup.
     func moveStorage(to destination: URL) throws -> AccountingRepository {
         let source = root.resolvingSymlinksInPath().standardizedFileURL.path
         let target = destination.resolvingSymlinksInPath().standardizedFileURL.path
         guard target != source, !target.hasPrefix(source + "/"), !source.hasPrefix(target + "/") else {
             throw failure("请选择当前目录以外的独立空文件夹")
         }
+        var copied: [URL] = []
         try coordinated(root) { _ in
             try self.coordinated(destination) { _ in
                 guard try FileManager.default.contentsOfDirectory(at: destination, includingPropertiesForKeys: nil).allSatisfy({ $0.lastPathComponent == ".DS_Store" }) else {
@@ -234,8 +205,6 @@ final class AccountingRepository {
                 _ = try self.load()
                 try self.ensureDownloaded(self.categoryURL)
                 let files = try FileManager.default.contentsOfDirectory(at: self.root, includingPropertiesForKeys: nil).filter { $0.pathExtension == "json" }
-                var copied: [URL] = []
-                var removed: [URL] = []
                 do {
                     for file in files {
                         try self.ensureDownloaded(file)
@@ -248,23 +217,33 @@ final class AccountingRepository {
                     for target in copied where target.deletingPathExtension().lastPathComponent.count == 4 {
                         if let year = Int(target.deletingPathExtension().lastPathComponent) { _ = try self.readYear(target, year: year) }
                     }
-                    for file in files {
-                        try FileManager.default.removeItem(at: file)
-                        removed.append(file)
-                    }
                     return
                 } catch {
-                    // Restore deleted source files before cleaning the destination.
-                    // If restoration fails, retain the destination as the recovery copy.
-                    do {
-                        for file in removed { try FileManager.default.copyItem(at: destination.appendingPathComponent(file.lastPathComponent), to: file) }
-                    } catch { throw self.failure("迁移未完成，目标目录保留完整副本，请检查两个目录后重试") }
                     for file in copied { try? FileManager.default.removeItem(at: file) }
                     throw error
                 }
             }
         }
+        // Opening another coordinator must happen outside the nested coordination.
         return try AccountingRepository(url: destination)
+    }
+    static func removeMigratedJSON(at source: URL) throws {
+        var coordinationError: NSError?
+        var deletionError: Error?
+        NSFileCoordinator().coordinate(writingItemAt: source, options: .forMerging, error: &coordinationError) { url in
+            do {
+                let fm = FileManager.default
+                guard fm.fileExists(atPath: url.path) else { return }
+                for file in try fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil) {
+                    let name = file.lastPathComponent
+                    if file.pathExtension == "json" || (name.hasPrefix(".") && name.hasSuffix(".json.icloud")) {
+                        try fm.removeItem(at: file)
+                    }
+                }
+            } catch { deletionError = error }
+        }
+        if let error = coordinationError { throw error }
+        if let error = deletionError { throw error }
     }
     private func reloadCategories(entries: [LedgerEntry]) throws {
         try updateCategories { values in
