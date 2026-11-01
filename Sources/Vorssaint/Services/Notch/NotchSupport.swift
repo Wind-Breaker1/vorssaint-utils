@@ -1431,7 +1431,9 @@ struct NotchQuickButton: Codable, Equatable, Identifiable {
 struct NotchQuickAccessConfiguration: Equatable, Codable {
     var buttons: [NotchQuickButton]
     private var version = 1
-    static let maximumPerSide = 3
+    static func maximum(on side: NotchQuickAccessSide) -> Int {
+        side == .bottom ? 6 : 3
+    }
     static let initial = Self(buttons: [
         NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000001")!, action: .explore, side: .left),
         NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000002")!, action: .module(.timer), side: .left),
@@ -1458,7 +1460,7 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
         var counts: [NotchQuickAccessSide: Int] = [:]
         let safe = buttons.prefix(64).compactMap { button -> NotchQuickButton? in
             guard button.action != nil, ids.insert(button.id).inserted,
-                  counts[button.side, default: 0] < Self.maximumPerSide else { return nil }
+                  counts[button.side, default: 0] < Self.maximum(on: button.side) else { return nil }
             counts[button.side, default: 0] += 1
             var result = button
             result.label = String(button.label.components(separatedBy: .newlines).joined(separator: " ")
@@ -1508,7 +1510,7 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
 
     /// Whether a side has a free place. A hidden button still holds its own.
     func hasRoom(on side: NotchQuickAccessSide) -> Bool {
-        buttons.filter { $0.side == side }.count < Self.maximumPerSide
+        buttons.filter { $0.side == side }.count < Self.maximum(on: side)
     }
 
     /// Swaps a button with its neighbour on the same side. False when it is
@@ -1571,7 +1573,7 @@ enum NotchQuickAccessLayout {
                           side: NotchQuickAccessSide) -> CGRect {
         guard count > 0 else { return .null }
         let first = center(index: 0, progress: 1, edge: edge, top: top, side: side)
-        let last = center(index: min(3, count) - 1, progress: 1, edge: edge, top: top, side: side)
+        let last = center(index: min(NotchQuickAccessConfiguration.maximum(on: side), count) - 1, progress: 1, edge: edge, top: top, side: side)
         let radius = diameter / 2
         if side == .bottom {
             return CGRect(x: first.x - radius, y: edge, width: last.x - first.x + diameter,
@@ -1603,7 +1605,7 @@ enum NotchQuickAccessLayout {
 
     static func hitTest(_ point: CGPoint, count: Int, edge: CGFloat, top: CGFloat,
                         side: NotchQuickAccessSide) -> Bool {
-        (0..<max(0, min(3, count))).contains { index in
+        (0..<max(0, min(NotchQuickAccessConfiguration.maximum(on: side), count))).contains { index in
             let center = center(index: index, progress: 1, edge: edge, top: top, side: side)
             return hypot(point.x - center.x, point.y - center.y) <= diameter / 2
         }
