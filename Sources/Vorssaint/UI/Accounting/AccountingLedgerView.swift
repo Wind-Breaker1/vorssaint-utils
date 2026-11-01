@@ -36,15 +36,19 @@ struct AccountingLedgerView: View {
                 summary("结余", service.snapshot.income - service.snapshot.expense, color: .secondary)
             }.padding(.horizontal, 10).padding(.bottom, 6)
             HStack(spacing: 12) {
-                Picker("类型", selection: $kind) {
+                Picker(selection: $kind) {
                     Text("全部收支").tag(Optional<LedgerKind>.none)
                     ForEach(LedgerKind.allCases) { Text($0.title).tag(Optional($0)) }
+                } label: {
+                    Text("类型").foregroundStyle(.secondary)
                 }.fixedSize()
-                Picker("分类", selection: $category) {
+                Picker(selection: $category) {
                     Text("全部分类").tag("")
                     ForEach(service.snapshot.categories.filter { kind == nil || $0.kind == kind }) {
                         Text($0.name + ($0.archived ? "（已停用）" : "")).tag($0.id)
                     }
+                } label: {
+                    Text("分类").foregroundStyle(.secondary)
                 }.fixedSize()
                 Spacer()
                 Text("\(service.snapshot.count) 笔").foregroundStyle(.secondary)

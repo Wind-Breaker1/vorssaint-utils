@@ -19,7 +19,6 @@ final class AccountingService: ObservableObject {
     }
     @Published var showingLedger = false {
         didSet {
-            NotchService.shared.setAccountingLedgerVisible(showingLedger)
             if !showingLedger { releaseDatabase() }
         }
     }
