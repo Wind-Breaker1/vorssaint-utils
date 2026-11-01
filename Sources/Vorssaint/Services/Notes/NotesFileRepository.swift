@@ -96,31 +96,4 @@ struct NotesFileRepository {
         try [documents,drawings].flatMap { try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil) }
             .filter { ["md", "excalidraw"].contains($0.pathExtension) }.sorted { $0.path < $1.path }
     }
-    func migrate(from legacy: URL) throws {
-        let marker = root.appendingPathComponent(".migration-complete")
-        guard !FileManager.default.fileExists(atPath: marker.path) else { return }
-        struct Snapshot: Decodable { var notes: [NoteDocument]? }
-        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-        let source = ["notes.json", "workspace.json"].map { legacy.appendingPathComponent($0) }
-            .first { FileManager.default.fileExists(atPath: $0.path) }
-        if let source {
-            let data = try Data(contentsOf: source)
-            let snapshot = try decoder.decode(Snapshot.self, from: data)
-            let backup = root.appendingPathComponent("Migration", isDirectory: true)
-            try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
-            try data.write(to: backup.appendingPathComponent(source.lastPathComponent), options: .atomic)
-            for note in snapshot.notes ?? [] {
-                if !FileManager.default.fileExists(atPath: url(for: note).path) { try write(note) }
-                _ = try read(url(for: note))
-            }
-        }
-        let oldAttachments = legacy.appendingPathComponent("Attachments")
-        if FileManager.default.fileExists(atPath: oldAttachments.path) {
-            for file in try FileManager.default.contentsOfDirectory(at: oldAttachments, includingPropertiesForKeys: nil) {
-                let target = attachments.appendingPathComponent(file.lastPathComponent)
-                if !FileManager.default.fileExists(atPath: target.path) { try FileManager.default.copyItem(at: file, to: target) }
-            }
-        }
-        try Data("1".utf8).write(to: marker, options: .atomic)
-    }
 }

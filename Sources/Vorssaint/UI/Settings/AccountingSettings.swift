@@ -13,8 +13,11 @@ struct AccountingSettings: View {
     var body: some View {
         Form {
             Section("记账") {
-                LabeledContent("存储方式", value: "本地 SQLite · 人民币")
-                Text("记录收入与支出，不管理账户。停用功能保留数据，重新安装后可继续使用。")
+                LabeledContent("存储方式", value: "年度 JSON · 人民币")
+                LabeledContent("保存位置", value: service.storagePath)
+                Button(service.movingStorage ? "正在迁移并校验…" : "更改保存位置…") { service.chooseStorageFolder() }
+                    .disabled(service.movingStorage)
+                Text("可直接保存到 iCloud Drive 文件夹，各设备选择同一位置即可。记录收入与支出，不管理账户。")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button("打开账本") { AccountingService.shared.present(ledger: true) }
@@ -42,7 +45,11 @@ struct AccountingSettings: View {
                     }
                 }
                 HStack {
-                    TextField(editing == nil ? "新分类名称" : "分类名称", text: $name)
+                    TextField("", text: $name, prompt: Text(editing == nil ? "新分类名称" : "分类名称"))
+                        .labelsHidden().textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Spacer(minLength: 12)
                     if editing != nil { Button("取消", action: reset) }
                     Button(editing == nil ? "添加分类" : "保存名称") { save() }
                         .disabled(saving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

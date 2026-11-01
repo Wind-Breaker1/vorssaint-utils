@@ -4,8 +4,8 @@ import Combine
 
 final class NotesStore: ObservableObject {
     static let shared = NotesStore()
-    private static let defaultRoot = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
-        .appendingPathComponent("com.vorssaint.utils/Notes",isDirectory:true)
+    private static let defaultRoot = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/Vorssaint/Notes", isDirectory: true)
     static var root: URL { shared.repository.root }
     @Published private(set) var storagePath = ""
     private var scopedRoot: URL?
@@ -17,9 +17,11 @@ final class NotesStore: ObservableObject {
     private var repository: NotesFileRepository
     private var index: NotesIndex?
     private let queryService = NotesIndexQueryService()
-    private let indexCoordinator = NotesIndexCoordinator()
+    private lazy var indexCoordinator = NotesIndexCoordinator(queue: queue)
     private var links: [String:[String]] = [:]
     private let queue = DispatchQueue(label:"com.vorssaint.notes.index",qos:.userInitiated)
+    private var writeGeneration = 0
+    private var publishedGeneration = 0
     private init() {
         var location = Self.defaultRoot
         if let bookmark = UserDefaults.standard.data(forKey:"notes.storageBookmark") {
@@ -36,8 +38,15 @@ final class NotesStore: ObservableObject {
         if location.startAccessingSecurityScopedResource() { scopedRoot = location }
         storagePath = location.path
         do {
+            // Only create our subdirectories; never fabricate an unavailable iCloud Drive.
+            if UserDefaults.standard.data(forKey: "notes.storageBookmark") == nil {
+                let drive = Self.defaultRoot.deletingLastPathComponent().deletingLastPathComponent()
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: drive.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                    throw NSError(domain: "NotesStorage", code: 1, userInfo: [NSLocalizedDescriptionKey: "iCloud Drive 不可用，请启用 iCloud Drive 或选择其他保存目录"])
+                }
+            }
             try repository.prepare()
-            try repository.migrate(from:Self.defaultRoot.deletingLastPathComponent().appendingPathComponent("Workspace"))
             let index = try NotesIndex(url:repository.indexURL)
             self.index = index
             queryService.configure(url: repository.indexURL)
@@ -61,7 +70,10 @@ final class NotesStore: ObservableObject {
         }
         let request = NotesFlushRequest()
         NotificationCenter.default.post(name:.notesFlush,object:request)
-        guard !request.failed, index != nil else { return }
+        guard !request.failed else { return }
+        queue.sync {}
+        writeGeneration += 1; publishedGeneration = writeGeneration
+        let migrating = index != nil
         let fm = FileManager.default
         let accessed = selected.startAccessingSecurityScopedResource()
         var committed = false
@@ -71,7 +83,14 @@ final class NotesStore: ObservableObject {
                 throw NSError(domain:"NotesStorage",code:1,userInfo:[NSLocalizedDescriptionKey:"请选择空目录，避免覆盖已有文件"])
             }
             let bookmark = try selected.bookmarkData(options:.withSecurityScope,includingResourceValuesForKeys:nil,relativeTo:nil)
-            let prepared = try NotesDirectoryMigration.prepare(from:source,to:target)
+            let prepared: (repository: NotesFileRepository, index: NotesIndex)
+            if index != nil {
+                prepared = try NotesDirectoryMigration.prepare(from: source, to: target)
+            } else {
+                let next = NotesFileRepository(root: target)
+                try next.prepare()
+                prepared = (next, try NotesIndex(url: next.indexURL))
+            }
             let next = prepared.repository
             let nextIndex = prepared.index
             UserDefaults.standard.set(bookmark,forKey:"notes.storageBookmark")
@@ -86,8 +105,8 @@ final class NotesStore: ObservableObject {
             try refresh()
             NotificationCenter.default.post(name:.notesIndexChanged,object:nil)
             do {
-                try fm.removeItem(at:source)
-                indexStatus = "笔记目录已迁移，原目录已删除"
+                if migrating { try fm.removeItem(at:source) }
+                indexStatus = migrating ? "笔记目录已迁移，原目录已删除" : "笔记保存目录已设置"
                 saveError = nil
             } catch {
                 saveError = "已切换至新目录，但原目录未能删除：" + error.localizedDescription
@@ -98,51 +117,66 @@ final class NotesStore: ObservableObject {
     }
     private func refresh() throws {
         guard let index else { return }
-        notes = try index.catalog(); links = try index.relationships()
+        let snapshot = try queue.sync { (try index.catalog(), try index.relationships()) }
+        notes = snapshot.0; links = snapshot.1
     }
     func outgoing(_ id: UUID) -> [String] { links[id.uuidString.lowercased()] ?? [] }
     func document(_ id: UUID) -> NoteDocument? {
         guard let metadata = notes.first(where:{$0.id == id}) else { return nil }
-        do { return try repository.read(repository.url(for:metadata)) }
+        do { return try queue.sync { try repository.read(repository.url(for:metadata)) } }
         catch { saveError = error.localizedDescription; return nil }
     }
-    func addNote(_ title: String, type: String = "markdown") {
+    @discardableResult
+    func addNote(_ title: String, type: String = "markdown") -> NoteDocument? {
         let title = title.trimmingCharacters(in:.whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
+        guard !title.isEmpty else { return nil }
         var note = NoteDocument(id:UUID(),title:title,body:"",updatedAt:Date())
         note.type = type == "excalidraw" ? "excalidraw" : "markdown"
         if note.type == "excalidraw" { note.body = #"{"type":"excalidraw","version":2,"elements":[],"appState":{},"files":{}}"# }
-        persist(note)
+        var saved = false
+        persist(note, wait: true) { saved = $0 }
+        return saved ? note : nil
     }
-    func updateNote(_ note: NoteDocument) {
-        guard notes.contains(where:{$0.id == note.id}) else { return }
-        persist(note)
+    func updateNote(_ note: NoteDocument, wait: Bool = true, completion: @escaping (Bool) -> Void) {
+        guard notes.contains(where:{$0.id == note.id}) else {
+            saveError = "笔记不存在，无法保存"
+            completion(false)
+            return
+        }
+        persist(note, wait: wait, completion: completion)
     }
-    private func persist(_ note: NoteDocument) {
-        guard index != nil else { saveError = "笔记存储尚未就绪，无法保存"; return }
+    private func persist(_ note: NoteDocument, wait: Bool, completion: @escaping (Bool) -> Void) {
+        guard let index else {
+            saveError = "笔记存储尚未就绪，无法保存"
+            completion(false)
+            return
+        }
         let repository = repository
-        let index = index
-        queue.async { [weak self] in
-            guard let self, let index else { return }
-            do {
+        writeGeneration += 1
+        let generation = writeGeneration
+        let write = {
+            Result { () -> Void in
                 try repository.write(note)
                 try index.transaction {
                     try index.update(note)
                     try index.recordSignature(repository.signature(repository.url(for: note)), id: note.id)
                 }
-                let outgoing = try index.outgoing(note.id)
-                DispatchQueue.main.async {
-                    var summary = note
-                    summary.body = note.type == "markdown" ? String(note.body.prefix(160)) : ""
-                    var catalog = self.notes.filter { $0.id != note.id }
-                    catalog.append(summary)
-                    catalog.sort { $0.updatedAt == $1.updatedAt ? $0.id.uuidString < $1.id.uuidString : $0.updatedAt > $1.updatedAt }
-                    self.links[note.id.uuidString.lowercased()] = outgoing
-                    self.notes = catalog
-                    self.saveError = nil
-                }
-            } catch {
-                DispatchQueue.main.async { self.saveError = error.localizedDescription }
+            }
+        }
+        let finish: (Result<Void, Error>) -> Void = { [self] result in
+            // A synchronous flush may already have published a newer write.
+            if generation >= publishedGeneration {
+                publishedGeneration = generation
+                do { try result.get(); try refresh(); saveError = nil }
+                catch { saveError = error.localizedDescription; completion(false); return }
+            }
+            completion((try? result.get()) != nil)
+        }
+        if wait { finish(queue.sync(execute: write)) }
+        else {
+            queue.async {
+                let result = write()
+                DispatchQueue.main.async { finish(result) }
             }
         }
     }
@@ -153,14 +187,18 @@ final class NotesStore: ObservableObject {
             let backup = file.deletingLastPathComponent().appendingPathComponent(".delete-\(UUID().uuidString).tmp")
             // Rename within the same directory instead of loading a large
             // Markdown/Excalidraw file into memory for rollback.
-            try FileManager.default.moveItem(at:file, to:backup)
-            do {
-                try index.transaction { try index.remove(note.id) }
-                try FileManager.default.removeItem(at:backup)
-            } catch {
-                try? FileManager.default.moveItem(at:backup, to:file)
-                throw error
+            try queue.sync {
+                try FileManager.default.moveItem(at:file, to:backup)
+                do {
+                    try index.transaction { try index.remove(note.id) }
+                    try FileManager.default.removeItem(at:backup)
+                } catch {
+                    try? FileManager.default.moveItem(at:backup, to:file)
+                    throw error
+                }
             }
+            // Invalidate queued UI publications from saves preceding deletion.
+            writeGeneration += 1; publishedGeneration = writeGeneration
             links.removeValue(forKey:note.id.uuidString.lowercased())
             notes.removeAll { $0.id == note.id }
             saveError = nil

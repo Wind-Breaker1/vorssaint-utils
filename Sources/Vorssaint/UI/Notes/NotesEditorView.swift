@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 
 struct NotesEditorView: View {
     let note: NoteDocument
-    var body: some View { NoteWebEditor(note: note).frame(minWidth: 1440, minHeight: 900) }
+    var body: some View { NoteWebEditor(note: note) }
 }
 private struct NoteWebEditor: NSViewRepresentable {
     let note: NoteDocument
@@ -35,6 +35,7 @@ private struct NoteWebEditor: NSViewRepresentable {
         weak var web: WKWebView?
         private var saveWork: DispatchWorkItem?
         private var dirty = false
+        private var saveGeneration = 0
         init(note: NoteDocument) {
             self.note = note
             super.init()
@@ -61,16 +62,25 @@ private struct NoteWebEditor: NSViewRepresentable {
             save()
             if dirty { (notification.object as? NotesFlushRequest)?.failed = true }
         }
-        func save() {
+        func save(wait: Bool = true) {
             saveWork?.cancel(); saveWork = nil
             guard dirty else { return }
-            note.updatedAt = Date(); NotesStore.shared.updateNote(note)
-            if let error = NotesStore.shared.saveError { call("window.notesApp.status(text)", ["text": error]) }
-            else { dirty = false; call("window.notesApp.status(text)", ["text": "已保存"]) }
+            saveGeneration += 1
+            let generation = saveGeneration
+            note.updatedAt = Date()
+            NotesStore.shared.updateNote(note, wait: wait) { [weak self] success in
+                guard let self, generation == self.saveGeneration else { return }
+                if success {
+                    self.dirty = false
+                    self.call("window.notesApp.status(text)", ["text": "已保存"])
+                } else {
+                    self.call("window.notesApp.status(text)", ["text": NotesStore.shared.saveError ?? "保存失败"])
+                }
+            }
         }
         func scheduleSave() {
-            dirty = true; saveWork?.cancel()
-            let work = DispatchWorkItem { [weak self] in self?.save() }
+            dirty = true; saveGeneration += 1; saveWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in self?.save(wait: false) }
             saveWork = work
             DispatchQueue.main.asyncAfter(deadline: .now()+0.35, execute: work)
         }
@@ -132,10 +142,11 @@ private struct NoteWebEditor: NSViewRepresentable {
                 guard !dirty else { return }
                 let store = NotesStore.shared
                 let kind = body["noteType"] as? String == "excalidraw" ? "excalidraw" : "markdown"
-                store.addNote(kind == "excalidraw" ? "未命名画板" : "未命名笔记", type: kind)
-                if let error = store.saveError { status(NSError(domain:"Notes",code:1,userInfo:[NSLocalizedDescriptionKey:error])); return }
-                guard let created = store.notes.first else { return }
-                note = store.document(created.id) ?? created
+                guard let created = store.addNote(kind == "excalidraw" ? "未命名画板" : "未命名笔记", type: kind) else {
+                    call("window.notesApp.status(text)", ["text": store.saveError ?? "新建笔记失败"])
+                    return
+                }
+                note = created
                 load()
                 if let error = store.saveError { call("window.notesApp.status(text)", ["text": error]) }
             case "change":

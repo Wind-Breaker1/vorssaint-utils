@@ -2,7 +2,9 @@ import Foundation
 
 /// Coordinates filesystem reconciliation without owning UI state.
 final class NotesIndexCoordinator {
-    private let queue = DispatchQueue(label: "com.vorssaint.notes.reconcile", qos: .userInitiated)
+    private let queue: DispatchQueue
+
+    init(queue: DispatchQueue) { self.queue = queue }
 
     func reconcile(repository: NotesFileRepository, index: NotesIndex, completion: @escaping (Error?) -> Void) {
         queue.async {

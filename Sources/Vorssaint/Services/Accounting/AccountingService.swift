@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
 import Combine
+import AppKit
 
-/// Owns presentation state; all database work runs on one serial queue.
-/// The service is lazy and may be discarded when the accounting feature is
-/// disabled. The SQLite connection is also released whenever the ledger view
-/// is no longer presented.
+/// Owns presentation and sync state; JSON reads and writes use one serial queue.
 final class AccountingService: ObservableObject {
     private static var instance: AccountingService?
     static var shared: AccountingService {
@@ -13,15 +11,12 @@ final class AccountingService: ObservableObject {
         let service = AccountingService(); instance = service; return service
     }
     static func stopIfLoaded() {
+        instance?.refreshTimer?.invalidate()
         instance?.generation += 1
         instance?.queue.async { [weak service = instance] in service?.repository = nil }
         instance = nil
     }
-    @Published var showingLedger = false {
-        didSet {
-            if !showingLedger { releaseDatabase() }
-        }
-    }
+    @Published var showingLedger = false
     func present(ledger: Bool) {
         guard AppFeature.accounting.isAvailable else { return }
         showingLedger = ledger
@@ -38,20 +33,82 @@ final class AccountingService: ObservableObject {
     private let queue = DispatchQueue(label: "com.vorssaint.accounting", qos: .userInitiated)
     private var repository: AccountingRepository?
 
-    private init() { refresh() }
-    private func database() throws -> AccountingRepository {
+    private var refreshTimer: Timer?
+    private init() {
+        refresh()
+        // The selected folder is the only source of truth. iCloud transports
+        // files; periodically reread to show changes made on other devices.
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
+    }
+    deinit { refreshTimer?.invalidate() }
+    private func openRepository() throws -> AccountingRepository {
         if let repository { return repository }
-        guard let root = PrivateFileStore.containerURL?.appendingPathComponent("Accounting", isDirectory: true),
-              PrivateFileStore.createDirectory(at: root) else {
-            throw NSError(domain: "Accounting", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法创建记账存储目录"])
-        }
-        let repository = try AccountingRepository(url: root.appendingPathComponent("ledger.sqlite"))
+        let root = try storageURL()
+        let access = root.startAccessingSecurityScopedResource()
+        defer { if access { root.stopAccessingSecurityScopedResource() } }
+        let repository = try AccountingRepository(url: root)
         self.repository = repository
         return repository
     }
-    private func releaseDatabase() {
-        generation += 1
-        queue.async { [weak self] in self?.repository = nil }
+    private static let defaultRoot = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/Vorssaint/Accounting", isDirectory: true)
+    @Published private(set) var storagePath = UserDefaults.standard.string(forKey: "accounting.storagePath") ?? AccountingService.defaultRoot.path
+    @Published private(set) var movingStorage = false
+    private func storageURL() throws -> URL {
+        if let bookmark = UserDefaults.standard.data(forKey: "accounting.storageBookmark") {
+            var stale = false
+            let url = try URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope, .withoutUI], relativeTo: nil, bookmarkDataIsStale: &stale)
+            guard !stale else { throw NSError(domain: "Accounting", code: 1, userInfo: [NSLocalizedDescriptionKey: "存储目录授权已变化，请重新选择目录"]) }
+            return url
+        }
+        let drive = Self.defaultRoot.deletingLastPathComponent().deletingLastPathComponent()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: drive.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            throw NSError(domain: "Accounting", code: 1, userInfo: [NSLocalizedDescriptionKey: "iCloud Drive 不可用，请启用 iCloud Drive 或选择其他保存目录"])
+        }
+        return Self.defaultRoot
+    }
+    func chooseStorageFolder() {
+        guard !movingStorage else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
+        panel.message = "选择空文件夹存放年度 JSON。现有 JSON 文件将校验后迁移到新位置，成功后移除原目录中的 JSON。可直接选择 iCloud Drive 中的文件夹，各设备选择同一目录。"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        movingStorage = true
+        queue.async { [weak self] in
+            guard let self else { return }
+            let result = Result { () -> Void in
+                let access = destination.startAccessingSecurityScopedResource()
+                defer { if access { destination.stopAccessingSecurityScopedResource() } }
+                let bookmark = try destination.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+                let current: AccountingRepository?
+                do { current = try self.openRepository() }
+                catch {
+                    // Allow choosing a folder when iCloud has never initialized.
+                    guard UserDefaults.standard.data(forKey: "accounting.storageBookmark") == nil,
+                          !FileManager.default.fileExists(atPath: Self.defaultRoot.path) else { throw error }
+                    current = nil
+                }
+                let verified: AccountingRepository
+                if let current { verified = try current.moveStorage(to: destination) }
+                else {
+                    guard try FileManager.default.contentsOfDirectory(at: destination, includingPropertiesForKeys: nil).isEmpty else {
+                        throw NSError(domain: "Accounting", code: 1, userInfo: [NSLocalizedDescriptionKey: "请选择空目录，避免覆盖已有文件"])
+                    }
+                    verified = try AccountingRepository(url: destination)
+                }
+                UserDefaults.standard.set(bookmark, forKey: "accounting.storageBookmark")
+                UserDefaults.standard.set(destination.path, forKey: "accounting.storagePath")
+                self.repository = verified
+            }
+            DispatchQueue.main.async {
+                self.movingStorage = false
+                switch result {
+                case .success: self.storagePath = destination.path; self.errorMessage = nil; self.refresh()
+                case .failure(let error): self.errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
     func select(month: Date, kind: LedgerKind?, category: String) {
         self.month = month; self.kind = kind; self.category = category; limit = 100
@@ -64,12 +121,16 @@ final class AccountingService: ObservableObject {
         loading = true
         queue.async { [weak self] in
             guard let self else { return }
-            let result = Result { try self.database().snapshot(month: month, limit: limit, kind: kind, category: category) }
+            let result = Result { () -> LedgerSnapshot in
+                let repository = try self.openRepository()
+                let snapshot = try repository.snapshot(month: month, limit: limit, kind: kind, category: category)
+                return snapshot
+            }
             DispatchQueue.main.async {
                 guard token == self.generation else { return }
                 self.loading = false
                 switch result {
-                case .success(let snapshot): self.snapshot = snapshot; self.errorMessage = nil
+                case .success(let value): self.snapshot = value; self.errorMessage = nil
                 case .failure(let error): self.errorMessage = error.localizedDescription
                 }
             }
@@ -78,7 +139,7 @@ final class AccountingService: ObservableObject {
     private func write(_ operation: @escaping (AccountingRepository) throws -> Void, completion: @escaping (String?) -> Void) {
         queue.async { [weak self] in
             guard let self else { return }
-            let result = Result { try operation(self.database()) }
+            let result = Result { try operation(self.openRepository()) }
             DispatchQueue.main.async {
                 switch result {
                 case .success: self.refresh(); completion(nil)

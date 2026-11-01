@@ -9,13 +9,6 @@ enum NotesWindowLayout {
 /// Hosting controllers can publish new minimums after layout or content changes.
 /// Keep the product's minimum at the window boundary for every such update.
 private final class NotesWindow: NSWindow {
-    override var minSize: NSSize {
-        get { super.minSize }
-        set {
-            let minimum = frameRect(forContentRect: NSRect(origin: .zero, size: NotesWindowLayout.minimumSize)).size
-            super.minSize = NSSize(width: max(newValue.width, minimum.width), height: max(newValue.height, minimum.height))
-        }
-    }
     override var contentMinSize: NSSize {
         get { super.contentMinSize }
         set {
@@ -63,18 +56,12 @@ extension AppDelegate {
         window.delegate = WorkspaceNoteWindowDelegate.shared
         Self.workspaceNoteWindow = window
         window.makeKeyAndOrderFront(nil)
-        // NSHostingController may clear NSWindow's min size during first layout.
-        DispatchQueue.main.async { window.contentMinSize = NotesWindowLayout.minimumSize }
         NSApp.activate(ignoringOtherApps: true)
     }
 }
 
 private final class WorkspaceNoteWindowDelegate: NSObject, NSWindowDelegate {
     static let shared = WorkspaceNoteWindowDelegate()
-    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        let minimumFrame = sender.frameRect(forContentRect: NSRect(origin: .zero, size: NotesWindowLayout.minimumSize)).size
-        return NSSize(width: max(frameSize.width, minimumFrame.width), height: max(frameSize.height, minimumFrame.height))
-    }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         let request = NotesFlushRequest()
         NotificationCenter.default.post(name: .notesFlush, object: request)

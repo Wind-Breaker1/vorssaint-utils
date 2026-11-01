@@ -25,15 +25,7 @@ final class NotesIndex {
             try execute("PRAGMA journal_mode=WAL")
             try execute("CREATE TABLE IF NOT EXISTS file_state(id TEXT PRIMARY KEY, signature TEXT NOT NULL)")
             try execute("CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY, metadata TEXT NOT NULL, summary TEXT NOT NULL, updated REAL NOT NULL)")
-            let schemaVersion = Int(try rows("PRAGMA user_version").first?.first ?? "0") ?? 0
-            if schemaVersion < 1 {
-                // Development schema: discard the old relationship table once.
-                try execute("DROP TABLE IF EXISTS links")
-                try execute("CREATE TABLE links(source TEXT NOT NULL,target TEXT NOT NULL, label TEXT NOT NULL, heading TEXT NOT NULL, PRIMARY KEY(source,target,label,heading))")
-                try execute("PRAGMA user_version=1")
-            } else {
-                try execute("CREATE TABLE IF NOT EXISTS links(source TEXT NOT NULL,target TEXT NOT NULL, label TEXT NOT NULL, heading TEXT NOT NULL, PRIMARY KEY(source,target,label,heading))")
-            }
+            try execute("CREATE TABLE IF NOT EXISTS links(source TEXT NOT NULL,target TEXT NOT NULL, label TEXT NOT NULL, heading TEXT NOT NULL, PRIMARY KEY(source,target,label,heading))")
             try execute("CREATE INDEX IF NOT EXISTS links_target ON links(target)")
             try execute("CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(id UNINDEXED,title,body,tags,tokenize='trigram')")
         } catch { sqlite3_close(db); db = nil; throw error }

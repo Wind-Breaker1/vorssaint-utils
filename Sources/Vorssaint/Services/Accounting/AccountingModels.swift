@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
 
-enum LedgerKind: String, CaseIterable, Identifiable {
+enum LedgerKind: String, Codable, CaseIterable, Identifiable {
     case expense, income
     var id: String { rawValue }
     var title: String { self == .expense ? "支出" : "收入" }
 }
 
-struct LedgerCategory: Identifiable, Equatable {
+struct LedgerCategory: Codable, Identifiable, Equatable {
     let id: String
     let name: String
     let kind: LedgerKind
     let archived: Bool
 }
 
-struct LedgerEntry: Identifiable, Equatable {
+struct LedgerEntry: Codable, Identifiable, Equatable {
     let id: String
     let amount: Int64
     let categoryID: String

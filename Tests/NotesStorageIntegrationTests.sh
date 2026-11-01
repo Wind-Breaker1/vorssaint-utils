@@ -8,19 +8,15 @@ import Foundation
 let root = URL(fileURLWithPath:CommandLine.arguments[1]).appendingPathComponent("Notes")
 let repository = NotesFileRepository(root:root)
 try repository.prepare()
-let legacy = root.deletingLastPathComponent().appendingPathComponent("Workspace")
-try FileManager.default.createDirectory(at:legacy.appendingPathComponent("Attachments"),withIntermediateDirectories:true)
 let id = UUID(), drawingID = UUID()
 var note = NoteDocument(id:id,title:"中文搜索 migration",body:"# 标题\n\n跨行内容\n---\n[[画板|\(drawingID.uuidString)]]\nsearchable long phrase",updatedAt:Date(timeIntervalSince1970:1700000000))
 note.tags = ["学习"]
 note.properties = [NoteProperty(name:"状态",kind:"文本",value:"完成")]
 var drawing = NoteDocument(id:drawingID,title:"画板",body:#"{"elements":[{"type":"text","text":"画板文字 searchable"}],"files":{"image":{"dataURL":"data:image/png;base64,test"}},"appState":{}}"#,updatedAt:note.updatedAt)
 drawing.type = "excalidraw"
-struct Snapshot:Encodable { let notes:[NoteDocument] }
-let encoder = JSONEncoder();encoder.dateEncodingStrategy = .iso8601
-try encoder.encode(Snapshot(notes:[note,drawing])).write(to:legacy.appendingPathComponent("notes.json"))
-try Data("attachment".utf8).write(to:legacy.appendingPathComponent("Attachments/image.png"))
-try repository.migrate(from:legacy)
+try repository.write(note)
+try repository.write(drawing)
+try Data("attachment".utf8).write(to:repository.attachments.appendingPathComponent("image.png"))
 assert(try repository.files().count == 2)
 assert(try repository.read(repository.url(for:note)) == note)
 let readDrawing = try repository.read(repository.url(for:drawing))
@@ -31,11 +27,23 @@ assert((storedFiles["image"]?["dataURL"] as? String)?.hasPrefix("assets/") == tr
 let scene = try JSONSerialization.jsonObject(with:Data(readDrawing.body.utf8)) as! [String:Any]
 assert(scene["files"] != nil && scene["vorssaint"] == nil)
 assert(FileManager.default.fileExists(atPath:repository.attachments.appendingPathComponent("image.png").path))
-assert(FileManager.default.fileExists(atPath:root.appendingPathComponent("Migration/notes.json").path))
-note.body += "\nmodified after migration"
+note.body += "\nmodified after initial write"
 try repository.write(note)
-try repository.migrate(from:legacy)
 assert(try repository.read(repository.url(for:note)).body == note.body)
+// Current files require the complete metadata format; no legacy defaults.
+let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+let encoded = try encoder.encode(note)
+assert(try decoder.decode(NoteDocument.self, from: encoded) == note)
+for field in ["tags", "properties", "type"] {
+ var incomplete = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+ incomplete.removeValue(forKey: field)
+ let data = try JSONSerialization.data(withJSONObject: incomplete)
+ do {
+  _ = try decoder.decode(NoteDocument.self, from: data)
+  assertionFailure("incomplete legacy metadata must not be accepted")
+ } catch {}
+}
 let index = try NotesIndex(url:repository.indexURL)
 try index.transaction {
  try index.clear()
