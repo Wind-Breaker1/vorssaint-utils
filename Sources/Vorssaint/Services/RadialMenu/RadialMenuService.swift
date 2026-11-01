@@ -779,6 +779,7 @@ final class RadialMenuService: ObservableObject {
             case .quickLauncher: QuickLauncherService.shared.show()
             case .cameraPreview: CameraPreviewService.shared.show()
             case .scratchpad: ScratchpadService.shared.show()
+            case .notes: appDelegate()?.openNotesWindow()
             case .shelf: ShelfService.shared.summon()
             case .cleaner: Self.openSettings(at: .cleaner)
             case .uninstaller: Self.openSettings(at: .uninstaller)
