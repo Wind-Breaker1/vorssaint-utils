@@ -182,26 +182,23 @@ struct MenuPanelView: View {
     /// Uses the same sections and actions inside an existing surface. The
     /// host already supplies the title and material; one native scroll view
     /// keeps long sections usable without nesting two scroll regions.
-    @ViewBuilder
     private func embeddedPanel(size: CGSize) -> some View {
-        let headerHeight: CGFloat = 38
         VStack(spacing: 12) {
             Group {
                 if let selectedMetric { metricNavigationHeader(selectedMetric) }
                 else { sectionNavigation }
             }
-            .frame(height: headerHeight)
+            .frame(height: 38)
             OverlayScrollView(measuredHeight: $navigableContentHeight) {
                 Group {
                     if let selectedMetric { MetricDetailView(kind: selectedMetric) }
                     else { section(for: activeSection, collapsible: false) }
                 }
                 .frame(width: size.width)
-                .frame(maxHeight: .infinity, alignment: .top)
                 .environment(\.notchPresentation, true)
                 .environment(\.colorScheme, .dark)
             }
-            .frame(width: size.width, height: max(0, size.height - headerHeight - 58))
+            .frame(width: size.width, height: max(0, size.height - 96))
             footer
         }
         .frame(width: size.width, height: size.height, alignment: .top)
