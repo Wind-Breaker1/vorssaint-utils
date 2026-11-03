@@ -265,7 +265,7 @@ struct MenuPanelView: View {
     }
 
     private var activeSection: PanelSectionID {
-        return visibleSections.contains(selectedSection) ? selectedSection : (visibleSections.first ?? .keepAwake)
+        visibleSections.contains(selectedSection) ? selectedSection : (visibleSections.first ?? .keepAwake)
     }
 
     private var navigableScrollHeight: CGFloat {
@@ -2595,7 +2595,7 @@ private extension View {
 private extension UpdateService.State {
     var showsMenuPanelBanner: Bool {
         switch self {
-        case .available:
+        case .available, .downloading, .installing:
             return true
         default:
             return false
@@ -2606,7 +2606,7 @@ private extension UpdateService.State {
 // MARK: - Update banner
 
 /// Discreet "update available" row shown above everything when a newer release
-/// is found. Tapping it opens read-only upstream release notes.
+/// is found. Tapping it installs the update (which quits and relaunches).
 struct UpdateBanner: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
@@ -2636,7 +2636,7 @@ struct UpdateBanner: View {
                             .foregroundStyle(.white.opacity(0.85))
                     }
                     Spacer()
-                    Text(l10n.s.tabReleaseNotes)
+                    Text(l10n.s.updateBannerAction)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(tintColor)
                         .padding(.horizontal, 10)
@@ -2651,11 +2651,41 @@ struct UpdateBanner: View {
                 )
             }
             .buttonStyle(.plain)
+        case let .downloading(progress):
+            progressRow(l10n.s.updateDownloading, fraction: progress)
+        case .installing:
+            progressRow(l10n.s.updateInstalling)
         default:
             EmptyView()
         }
     }
 
+    /// With a known fraction the row shows a real bar and percentage; while
+    /// the size is unknown (or for the install step) it keeps the spinner.
+    private func progressRow(_ text: String, fraction: Double? = nil) -> some View {
+        HStack(spacing: 8) {
+            if fraction == nil {
+                ProgressView().controlSize(.small)
+            }
+            Text(text).font(.system(size: 11.5, weight: .medium))
+            if let fraction {
+                ProgressView(value: fraction)
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity)
+                Text("\(Int(fraction * 100))%")
+                    .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            } else {
+                Spacer()
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+    }
 }
 
 // MARK: - Keep awake

@@ -1294,7 +1294,10 @@ def main():
           + "}\n"
           + declaration(update_view, "struct NotchUpdateControl:")
           + "}\n")
-    (OUTPUT / "UpdateAdminInstall.swift").unlink(missing_ok=True)
+    write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"
+          + "final class Service: Fixture {\n"
+          + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
+          + "}\n}\n")
     highlights = "Sources/Vorssaint/UI/UpdateHighlightsView.swift"
     write("UpdateHighlights.swift", "import AppKit\nimport SwiftUI\nextension UpdateHighlightsTests {\n"
           + "".join(declaration(highlights, prefix) for prefix in [
@@ -1973,12 +1976,12 @@ def main():
           + "}\nfinal class Selection {\n"
           + "final class Options { var controlsInNotch = true; var hasFocusedControl = false }\n"
           + "enum Outcome { case cancelled }\nvar screenCaptureOptions: Options? = Options()\n"
-          + "var keyMonitor: Any?\nvar rightMouseMonitor: Any?\nvar globalKeyMonitor: Any?\nvar finished = false\nvar spaceIsDown = false\n"
+          + "var keyMonitor: Any?\nvar globalKeyMonitor: Any?\nvar spaceIsDown = false\n"
           + "var acceptsWindowClick = true\nvar loupeAcceptsKeyboardActions = false\n"
           + "var actions: [String] = []\nvar draggingPanel: ScreenshotOverlayPanel?\n"
           + "var isPickingColor = false\nvar acceptsCaptureInput = true\n"
           + "var panels: [ScreenshotOverlayPanel] = []\nvar currentPointerLocation: CGPoint?\n"
-          + 'func finish(_ outcome: Outcome) { actions.append("cancel") }\nfunc cancel() { actions.append("cancel") }\n'
+          + 'func finish(_ outcome: Outcome) { actions.append("cancel") }\n'
           + 'func captureFullDisplayUnderMouse() { actions.append("fullDisplay") }\n'
           + 'func confirmColor(at point: CGPoint, on panel: ScreenshotOverlayPanel) { actions.append("color") }\n'
           + "func panelUnderMouse() -> ScreenshotOverlayPanel? { draggingPanel }\n"

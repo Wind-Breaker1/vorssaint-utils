@@ -54,7 +54,6 @@ final class ScreenshotSelectionController {
         otherProtectedWindowIDs().union(protectedWindowIDs)
     }
     private var keyMonitor: Any?
-    private var rightMouseMonitor: Any?
     private var globalKeyMonitor: Any?
     private var completion: ((Outcome) -> Void)?
     private var freeze: Bool
@@ -411,12 +410,6 @@ final class ScreenshotSelectionController {
     // MARK: - Keyboard
 
     private func installKeyMonitor() {
-        rightMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
-            guard let self, !self.finished else { return event }
-            guard event.window is ScreenshotOverlayPanel else { return event }
-            self.cancel()
-            return nil
-        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self else { return event }
             let inNotch = self.screenCaptureOptions?.controlsInNotch == true
@@ -856,10 +849,6 @@ final class ScreenshotSelectionController {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
         }
-        if let rightMouseMonitor {
-            NSEvent.removeMonitor(rightMouseMonitor)
-            self.rightMouseMonitor = nil
-        }
         if let globalKeyMonitor {
             NSEvent.removeMonitor(globalKeyMonitor)
             self.globalKeyMonitor = nil
@@ -926,7 +915,6 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
     let pixelScale: CGFloat
     private(set) var overlayViewStorage: ScreenshotOverlayView!
     private var backdropView: NSImageView!
-    private weak var selectionController: ScreenshotSelectionController?
 
     var overlayView: ScreenshotOverlayView { overlayViewStorage }
 
@@ -951,7 +939,6 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
         topChromeHeight = max(screen.safeAreaInsets.top,
                               screen.frame.maxY - screen.visibleFrame.maxY)
         self.frozenImage = frozenImage
-        self.selectionController = controller
         pixelScale = screen.backingScaleFactor
         super.init(contentRect: screen.frame,
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -1001,10 +988,6 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
         overlayViewStorage = view
         container.autoresizingMask = [.width, .height]
         contentView = container
-    }
-
-    override func rightMouseDown(with event: NSEvent) {
-        selectionController?.cancel()
     }
 
     /// Tool chrome lives in hosting views whose ideal size is a small bar.
@@ -1328,15 +1311,6 @@ private final class ScreenshotOverlayView: NSView {
         lastDragPoint = point
         selection = .zero
         needsDisplay = true
-    }
-
-    /// Match the conventional capture workflow: right-click abandons the
-    /// current selection without taking a screenshot. This is handled at the
-    /// overlay level so it works before a region has been started as well as
-    /// while the selection is being resized.
-    override func rightMouseDown(with event: NSEvent) {
-        guard acceptsPointerInput else { return }
-        controller?.cancel()
     }
 
     override func mouseDragged(with event: NSEvent) {

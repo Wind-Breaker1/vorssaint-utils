@@ -143,12 +143,10 @@ enum DefaultsKey {
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
     static let previewSize = "previewSize"                // dock preview thumbnail size (once shared with the app switcher)
     static let switcherPreviewSize = "switcherPreviewSize" // app switcher thumbnail size
-    static let showReleaseNotesBeforeUpdate = "showReleaseNotesBeforeUpdate"
-    static let updateLastInstallFailure = "updateLastInstallFailure"
-    static let simulateUpdate = "simulateUpdate"
     static let autoCheckUpdates = "autoCheckUpdates"
     static let includeBetaUpdates = "includeBetaUpdates"
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
+    static let showReleaseNotesBeforeUpdate = "showReleaseNotesBeforeUpdate" // release notes before downloading an update
     static let whatsNewPendingVersion = "whatsNewPendingVersion" // the update the post-update window starts after
     static let whatsNewSeenVersion = "whatsNewSeenVersion"   // last version that finished the window
     static let whatsNewKnownFeatures = "whatsNewKnownFeatures" // comma-joined AppFeature raw values
@@ -506,6 +504,7 @@ enum DefaultsKey {
     static let panelDiskOrder = "panelDiskOrder"
     static let panelPowerOrder = "panelPowerOrder"
     static let panelNavigationEnabled = "panelNavigationEnabled" // legacy: the panel always navigates by sections since 3.1.8
+    static let updateLastInstallFailure = "updateLastInstallFailure" // last installer step that failed (fail-copy etc.)
     static let windowLayoutHiddenActions = "windowLayoutHiddenActions" // comma-separated action ids hidden from the grid
     static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
@@ -981,7 +980,8 @@ enum DefaultsKey {
     static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
     static let radialMenuProfiles = "radialMenuProfiles"  // Data: [RadialMenuProfile] JSON
 
-    // Dev-build only: preview beta styling.
+    // Dev-build only: force the "update available" UI for local testing.
+    static let simulateUpdate = "simulateUpdate"
     static let simulateBetaUI = "simulateBetaUI"
 
     /// Features hub availability layer, one key per AppFeature raw value.
@@ -1313,10 +1313,10 @@ enum Defaults {
         DefaultsKey.middleClickTapFingers: 0,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.switcherPreviewSize: "normal",
-        DefaultsKey.showReleaseNotesBeforeUpdate: true,
         DefaultsKey.autoCheckUpdates: true,
         DefaultsKey.includeBetaUpdates: false,
         DefaultsKey.releaseNotesOnUpdate: true,
+        DefaultsKey.showReleaseNotesBeforeUpdate: true,
         DefaultsKey.updateShowcaseIntroVersion: "",
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,

@@ -27,7 +27,8 @@ enum NotchUpdateTests {
         let service = Service()
         defer { updates.state = .idle }
         let states: [UpdateService.State] = [.idle, .checking, .upToDate, .failed("offline"),
-            .available(version: "3.4.0"), .available(version: "3.4.0-beta.3")]
+            .available(version: "3.4.0"), .available(version: "3.4.0-beta.3"),
+            .downloading(progress: nil), .downloading(progress: 0.5), .installing]
         for state in states {
             updates.state = state
             for running in [false, true] {
@@ -72,7 +73,8 @@ enum NotchUpdateTests {
         let wing = narrowestCameraWing()
         suite.expect(wing.isFinite && wing > 44, "some island layout places the header beside the camera")
         let samples: [UpdateService.State] = [.available(version: "3.4.0-beta.3"),
-                                             .available(version: "3.4.0")]
+                                             .available(version: "3.4.0"), .downloading(progress: nil),
+                                             .downloading(progress: 0.63), .installing]
         for language in AppLanguage.allCases {
             L10n.shared.language = language
             for state in samples {

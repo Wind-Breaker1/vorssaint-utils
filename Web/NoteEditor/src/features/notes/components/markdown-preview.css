@@ -183,6 +183,15 @@
 		--callout-color: var(--color-station-muted);
 	}
 	.markdown-preview .mermaid {
+		--pele-bg: var(--color-station-bg);
+		--pele-fg: var(--color-station-text);
+		--pele-muted: var(--color-station-muted);
+		--pele-line: #c9c7e3;
+		--pele-surface: #32314b;
+		--pele-surface-alt: #243b46;
+		--pele-border: #77758f;
+		--pele-accent: var(--color-station-accent);
+		--pele-error: var(--color-station-danger);
 		@apply rounded-lg bg-white/5 p-3 text-center;
 	}
 	.markdown-preview .mermaid svg {

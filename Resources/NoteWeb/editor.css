@@ -2397,6 +2397,15 @@
     --callout-color: var(--color-station-muted);
   }
   .markdown-preview .mermaid {
+    --pele-bg: var(--color-station-bg);
+    --pele-fg: var(--color-station-text);
+    --pele-muted: var(--color-station-muted);
+    --pele-line: #c9c7e3;
+    --pele-surface: #32314b;
+    --pele-surface-alt: #243b46;
+    --pele-border: #77758f;
+    --pele-accent: var(--color-station-accent);
+    --pele-error: var(--color-station-danger);
     border-radius: var(--radius-lg);
     background-color: color-mix(in srgb, #fff 5%, transparent);
     @supports (color: color-mix(in lab, red, red)) {

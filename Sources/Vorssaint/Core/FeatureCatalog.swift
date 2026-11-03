@@ -204,7 +204,7 @@ extension AppFeature {
         case .accounting: return "yensign.circle"
         case .reminders: return "checklist"
         case .systemData: return "internaldrive"
-        case .notes: return "doc.text"
+        case .notes: return "book.closed"
         case .commandBar: return "command"
         case .killProcess: return "xmark.octagon"
         case .portManager: return "network"

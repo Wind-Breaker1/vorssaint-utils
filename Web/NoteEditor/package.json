@@ -19,7 +19,7 @@
     "dompurify": "3",
     "highlight.js": "11",
     "markdown-it": "14",
-    "mermaid": "11",
+    "pele": "1.13.0",
     "react": "19",
     "react-dom": "19"
   },

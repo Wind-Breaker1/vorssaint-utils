@@ -44,9 +44,9 @@ importers:
       markdown-it:
         specifier: '14'
         version: 14.3.3
-      mermaid:
-        specifier: '11'
-        version: 11.17.2
+      pele:
+        specifier: 1.13.0
+        version: 1.13.0
       react:
         specifier: '19'
         version: 19.3.1
@@ -1521,6 +1521,10 @@ packages:
   path-key@3.1.1:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
+
+  pele@1.13.0:
+    resolution: {integrity: sha512-Ie8UKY9x00MsuR3jO6AzUwzK2Z6MIV3Tf4EDdITiuk8Uaz8K7g0R082WqsqNaSU8DdgkrRvZThzhit83mi/uiw==}
+    engines: {node: '>=20'}
 
   perfect-freehand@1.2.0:
     resolution: {integrity: sha512-h/0ikF1M3phW7CwpZ5MMvKnfpHficWoOEyr//KVNTxV4F6deRK1eYMtHyBKEAKFK0aXIEUK9oBvlF6PNXMDsAw==}
@@ -3304,6 +3308,8 @@ snapshots:
   path-data-parser@0.1.0: {}
 
   path-key@3.1.1: {}
+
+  pele@1.13.0: {}
 
   perfect-freehand@1.2.0: {}
 

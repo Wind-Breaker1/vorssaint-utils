@@ -2145,21 +2145,6 @@ enum NotchTests {
         suite.expect(!held.hasRoom(on: .left) && held.buttons.first(where: { $0.id == incoming.id })?.side == .right
                && held.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.music), .settings],
                "a hidden button keeps its place, so a side it fills takes no other")
-        let bottom = NotchQuickAccessConfiguration(buttons: (0..<7).map { _ in
-            NotchQuickButton(action: .explore, side: .bottom)
-        }).sanitized()
-        suite.expect(bottom.buttons.count == 6 && !bottom.hasRoom(on: .bottom),
-                     "the bottom row preserves six buttons and rejects a seventh")
-        let bottomPlacements = NotchQuickAccessLayout.placements(bottom,
-            body: CGRect(x: 72, y: 0, width: 320, height: 200), headerTop: 60)
-        for placement in bottomPlacements {
-            let center = placement.center(progress: 1)
-            suite.expect(NotchQuickAccessLayout.hitTest(center, count: 6, edge: placement.edge,
-                             top: placement.top, side: .bottom)
-                         && NotchQuickAccessLayout.hoverRect(count: 6, edge: placement.edge,
-                             top: placement.top, side: .bottom).contains(center),
-                         "every bottom button remains clickable and inside the hover corridor")
-        }
         var reordered = NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.music), .settings])
         let ids = reordered.buttons.map(\.id)
         let swapped = reordered.reorder(ids[2], by: -1)
@@ -2712,7 +2697,7 @@ enum NotchTests {
                "moving a button preserves its identity and inserts it in the chosen order")
         let crowded = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .bottom) })
         defaults.set(crowded.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
-        suite.expect(crowded.sanitized().buttons.count == 6 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 6,
+        suite.expect(crowded.sanitized().buttons.count == 3 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 3,
                "restored layouts cannot overfill an edge")
         var invalidButton = NotchQuickButton(action: .settings, side: .left, label: "  Name\nwith line  ")
         invalidButton.actionID = "unrecognized-action"

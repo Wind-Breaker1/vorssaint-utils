@@ -12,12 +12,6 @@ import Foundation
 /// seen dropping third-party items outright. So the app remembers the user's
 /// choice in preferences and redoes a lost registration at startup.
 enum LaunchAtLoginSupport {
-    /// Temporary or read-only app locations cannot provide a durable login item.
-    static func runsFromImmutableLocation(appPath: String,
-                                         volumeIsReadOnly: (String) -> Bool) -> Bool {
-        appPath.contains("/AppTranslocation/") || volumeIsReadOnly(appPath)
-    }
-
     /// Settings keeps its view alive when the window closes, so onAppear
     /// alone cannot refresh a choice made in System Settings.
     static let settingsRefreshRequested = Notification.Name("Vorssaint.launchAtLoginSettingsRefreshRequested")

@@ -122,124 +122,34 @@ export const MarkdownPreview = forwardRef<MarkdownPreviewHandle, Props>(function
 		const blocks = node?.querySelectorAll<HTMLElement>('pre.mermaid');
 		if (!node || !blocks?.length) return;
 		let cancelled = false;
-		void import('mermaid')
-			.then(({ default: mermaid }) => {
+		const diagrams: Array<{ destroy(): void }> = [];
+		void import('pele')
+			.then(({ mount }) => {
 				if (cancelled) return;
-				const styles = getComputedStyle(node);
-				const themeColor = (name: string) => styles.getPropertyValue(`--color-station-${name}`).trim();
-				const text = themeColor('text');
-				const accent = themeColor('accent');
-				const background = themeColor('bg');
-				const surface = '#32314b';
-				const secondarySurface = '#243b46';
-				mermaid.initialize({
-					startOnLoad: false,
-					securityLevel: 'strict',
-					theme: 'base',
-					// Mermaid 11 读取全局 htmlLabels；仅配置 flowchart 会被视为兼容项，
-					// 某些图类型仍会退回 foreignObject，清洗后就会丢失节点文字。
-					htmlLabels: false,
-					flowchart: { htmlLabels: false },
-					themeVariables: {
-						darkMode: true,
-						background,
-						primaryColor: surface,
-						primaryTextColor: text,
-						primaryBorderColor: accent,
-						secondaryColor: secondarySurface,
-						secondaryTextColor: text,
-						secondaryBorderColor: themeColor('info'),
-						tertiaryColor: '#293b35',
-						tertiaryTextColor: text,
-						tertiaryBorderColor: themeColor('success'),
-						textColor: text,
-						titleColor: text,
-						lineColor: '#c9c7e3',
-						edgeLabelBackground: background,
-						clusterBkg: '#202131',
-						clusterBorder: '#77758f',
-						actorBkg: surface,
-						actorBorder: accent,
-						actorTextColor: text,
-						actorLineColor: '#9996b8',
-						signalColor: '#c9c7e3',
-						signalTextColor: text,
-						labelBoxBkgColor: surface,
-						labelBoxBorderColor: accent,
-						labelTextColor: text,
-						loopTextColor: text,
-						noteBkgColor: secondarySurface,
-						noteTextColor: text,
-						noteBorderColor: themeColor('info'),
-						activationBkgColor: surface,
-						activationBorderColor: accent,
-						taskBkgColor: surface,
-						taskBorderColor: accent,
-						taskTextColor: text,
-						taskTextOutsideColor: text,
-						taskTextDarkColor: background,
-						pieSectionTextColor: background,
-						pieLegendTextColor: text,
-						pieTitleTextColor: text,
-						fontFamily: styles.fontFamily,
-						fontSize: '14px',
-					},
-				});
-				return Promise.all(
-					Array.from(blocks).map(async (block, index) => {
-						const source = block.textContent ?? '';
-						try {
-							const { svg } = await mermaid.render(`station-mermaid-${Date.now()}-${index}`, source);
-							if (cancelled) return;
-							block.classList.remove('mermaid-error');
-							block.innerHTML = DOMPurify.sanitize(svg, {
-								USE_PROFILES: { svg: true, svgFilters: true },
-								// 保留 Mermaid 无 HTML 标签模式下的文字节点；部分图类型仍可能使用
-								// foreignObject，允许其必要节点后再由 DOMPurify 统一清洗。
-								ADD_TAGS: ['text', 'tspan', 'foreignObject', 'div', 'span'],
-								ADD_ATTR: [
-									'class',
-									'style',
-									'fill',
-									'stroke',
-									'stroke-width',
-									'text-anchor',
-									'dominant-baseline',
-									'x',
-									'y',
-									'dx',
-									'dy',
-									'transform',
-									'xmlns',
-									'width',
-									'height',
-									'viewBox',
-									'font-size',
-									'font-family',
-								],
-							});
-							// 时序图 rect 的背景来自源码，不受主题变量控制；保留色相并压暗，承托浅色文字。
-							block.querySelectorAll<SVGRectElement>('svg rect.rect').forEach((rect) => {
-								const fill = getComputedStyle(rect).fill;
-								if (fill !== 'none') rect.style.fill = `color-mix(in srgb, ${background} 78%, ${fill})`;
-							});
-						} catch {
-							if (cancelled) return;
-							block.classList.add('mermaid-error');
-							block.textContent = 'Mermaid 语法无法解析';
-						}
-					}),
-				);
+				for (const block of blocks) {
+					const source = block.textContent ?? '';
+					diagrams.push(mount(block, source, {
+						fontFamily: getComputedStyle(node).fontFamily,
+						fontSize: 14,
+						images: false,
+						zoom: false,
+						sanitize: (svg) => DOMPurify.sanitize(svg, {
+							USE_PROFILES: { svg: true, svgFilters: true },
+							RETURN_DOM_FRAGMENT: true,
+						}),
+					}));
+				}
 			})
 			.catch(() => {
-				if (!cancelled)
-					blocks.forEach((block) => {
-						block.classList.add('mermaid-error');
-						block.textContent = 'Mermaid 渲染器加载失败';
-					});
+				if (cancelled) return;
+				blocks.forEach((block) => {
+					block.classList.add('mermaid-error');
+					block.textContent = '图表渲染器加载失败';
+				});
 			});
 		return () => {
 			cancelled = true;
+			diagrams.forEach((diagram) => diagram.destroy());
 		};
 	}, [renderedSource]);
 	useEffect(() => {

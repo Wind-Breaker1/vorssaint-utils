@@ -121,7 +121,7 @@ enum LaunchAtLogin {
     }
 
     private static var locationIsUnstable: Bool {
-        LaunchAtLoginSupport.runsFromImmutableLocation(
+        UpdateInstallerSupport.runsFromImmutableLocation(
             appPath: Bundle.main.bundlePath,
             volumeIsReadOnly: { path in
                 let values = try? URL(fileURLWithPath: path)
