@@ -2,9 +2,12 @@
 import SwiftUI
 import EventKit
 import AppKit
+import Combine
 
 struct ReminderSettings: View {
     @ObservedObject private var reminders = ReminderService.shared
+    @ObservedObject private var shortcut = WorkspaceQuickHotkey.shared
+    @AppStorage(DefaultsKey.remindersShortcutEnabled) private var shortcutEnabled = true
     @AppStorage("reminders.defaultListID") private var defaultListID = ""
     var body: some View {
         Form {
@@ -22,7 +25,14 @@ struct ReminderSettings: View {
                 }
             }
             Section("快捷操作") {
-                Text("灵动岛中的新增按钮会使用提醒事项原生列表。快捷键设置将在待办快捷入口稳定后加入。").font(.caption).foregroundStyle(.secondary)
+                Toggle("启用全局快捷键", isOn: $shortcutEnabled)
+                    .onChange(of: shortcutEnabled) { _, _ in shortcut.syncWithPreferences() }
+                ShortcutPreferenceRow(role: .reminders, isEnabled: shortcutEnabled) { shortcut.syncWithPreferences() }
+                if shortcutEnabled && shortcut.registrationFailed {
+                    Text("快捷键已被占用，请更换组合").font(.caption).foregroundStyle(.orange)
+                }
+                Text("灵动岛中的新增按钮会使用提醒事项原生列表。")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button("打开系统提醒事项") {
                     let configuration = NSWorkspace.OpenConfiguration()
                     NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/System/Applications/Reminders.app"), configuration: configuration)

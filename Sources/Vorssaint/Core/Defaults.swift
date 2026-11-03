@@ -615,6 +615,8 @@ enum DefaultsKey {
     static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
     static let accountingShortcutEnabled = "accountingShortcutEnabled"
     static let accountingShortcut = "accountingShortcut"
+    static let remindersShortcutEnabled = "remindersShortcutEnabled"
+    static let remindersShortcut = "remindersShortcut"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
@@ -1841,6 +1843,8 @@ enum Defaults {
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.accountingShortcutEnabled: false,
         DefaultsKey.accountingShortcut: GlobalShortcut.accountingDefault.storageValue,
+        DefaultsKey.remindersShortcutEnabled: true,
+        DefaultsKey.remindersShortcut: GlobalShortcut.remindersDefault.storageValue,
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,

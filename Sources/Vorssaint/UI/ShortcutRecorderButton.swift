@@ -163,6 +163,7 @@ final class RecorderButton: NSButton {
         observers.removeAll()
         ShortcutRecordingTap.end()
         ShortcutCapture.end()
+        WorkspaceQuickHotkey.shared.syncAfterCapture()
         refreshTitle()
         recordingChanged?(false)
     }

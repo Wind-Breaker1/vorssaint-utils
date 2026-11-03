@@ -66,7 +66,6 @@ let updateCatalog: (notes: Card[]) => void = () => {};
 let insert: (text: string) => void = () => {};
 let setStatus: (text: string) => void = () => {};
 let clear: () => void = () => {};
-let saveCurrent: () => void = () => {};
 let deliverSearch: (request: string, ids: string[] | null) => void = () => {};
 let current: NoteDetail | undefined;
 function Reading({
@@ -90,7 +89,7 @@ function Reading({
     </div>
   );
 }
-const VIRTUAL_NOTE_HEIGHT = 72;
+const VIRTUAL_NOTE_HEIGHT = 82;
 const VIRTUAL_OVERSCAN = 6;
 function VirtualNoteList({ items, currentID, onOpen }: { items: Card[]; currentID: string; onOpen: (id: string) => void }): React.JSX.Element {
   const [scrollTop, setScrollTop] = useState(0);
@@ -110,10 +109,15 @@ function VirtualNoteList({ items, currentID, onOpen }: { items: Card[]; currentI
   return <div ref={viewportRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-2 -mr-2" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
     <div style={{ height: items.length * VIRTUAL_NOTE_HEIGHT, position: 'relative' }}>
       <div style={{ position: 'absolute', top: start * VIRTUAL_NOTE_HEIGHT, left: 0, right: 0 }}>
-        {items.slice(start, end).map((item) => <button type="button" key={item.id} data-selected={item.id === currentID || undefined} aria-current={item.id === currentID ? 'page' : undefined} className="station-list-item relative flex h-[72px] w-full min-w-0 flex-col gap-1 text-left !pl-2" onClick={() => onOpen(item.id)}>
-          <span className="station-item-bar" /><span className="flex min-w-0 items-center gap-2"><Icon name={item.type === 'excalidraw' ? 'excalidraw' : 'notes'} className="size-4 shrink-0 text-station-accent" /><span className="truncate text-sm">{item.title || '未命名笔记'}</span></span>
-          <span className="line-clamp-2 text-xs leading-4 text-station-muted">{item.type === 'excalidraw' ? 'Excalidraw 画板' : item.body.slice(0, 160) || '暂无摘要'}</span>
-        </button>)}
+        {items.slice(start, end).map((item, offset) => {
+          const index = start + offset;
+          return <div key={item.id} className="absolute left-0 right-0" style={{ top: index * VIRTUAL_NOTE_HEIGHT, height: 72 }}>
+            <button type="button" data-selected={item.id === currentID || undefined} aria-current={item.id === currentID ? 'page' : undefined} className="station-list-item relative flex h-full w-full min-w-0 flex-col gap-1 text-left !pl-2" onClick={() => onOpen(item.id)}>
+              <span className="station-item-bar" /><span className="flex min-w-0 items-center gap-2"><Icon name={item.type === 'excalidraw' ? 'excalidraw' : 'notes'} className="size-4 shrink-0 text-station-accent" /><span className="truncate text-sm">{item.title || '未命名笔记'}</span></span>
+              <span className="line-clamp-2 text-xs leading-4 text-station-muted">{item.type === 'excalidraw' ? 'Excalidraw 画板' : item.body.slice(0, 160) || '暂无摘要'}</span>
+            </button>
+          </div>;
+        })}
       </div>
     </div>
   </div>;
@@ -211,10 +215,6 @@ function App() {
   clear = () => {
     setNote(undefined);
     setNotes([]);
-  };
-  saveCurrent = () => {
-    commitTag();
-    post("save");
   };
   current = note;
   useEffect(() => {
@@ -339,14 +339,6 @@ function App() {
                   onClick={() => setConfirmDelete(true)}
                 >
                   <Icon name="trash" className="size-4" />
-                </button>
-              </Tooltip>
-              <Tooltip content="保存笔记">
-                <button
-                  className="station-icon-button"
-                  onClick={() => saveCurrent()}
-                >
-                  <Icon name="save" className="size-4" />
                 </button>
               </Tooltip>
               <Tooltip content={editing ? "预览笔记" : "编辑笔记"}>
@@ -583,10 +575,3 @@ root.render(<App />);
     mermaid: true,
   }),
 };
-
-document.addEventListener("keydown", (event) => {
-  if (event.metaKey && event.key.toLowerCase() === "s") {
-    event.preventDefault();
-    saveCurrent();
-  }
-});

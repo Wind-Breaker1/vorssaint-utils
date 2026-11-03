@@ -157,7 +157,6 @@ private struct NoteWebEditor: NSViewRepresentable {
                     }
                 }
             case "presented": web?.alphaValue = 1
-            case "save": save()
             case "deleteNote":
                 save()
                 guard !dirty else { return }

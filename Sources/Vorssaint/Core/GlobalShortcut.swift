@@ -229,6 +229,7 @@ struct GlobalShortcut: Equatable, Hashable {
                                                   modifiers: [.control, .option, .command])
     // N for notes, on the same free control-option-command layer.
     static let accountingDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_B), modifiers: [.control, .option, .command])
+    static let remindersDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_T), modifiers: [.command, .option])
     static let scratchpadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_N),
                                                   modifiers: [.control, .option, .command])
     // I for island, on the same free control-option-command layer.
@@ -730,6 +731,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case radialMenu
     case scratchpad
     case accounting
+    case reminders
     case snippetLibrary
     case commandBar
     case screenRecorder
@@ -768,6 +770,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .accounting: return DefaultsKey.accountingShortcut
+        case .reminders: return DefaultsKey.remindersShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
@@ -807,6 +810,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
         case .accounting: return .accountingDefault
+        case .reminders: return .remindersDefault
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
         case .commandBar: return .commandBarDefault
@@ -874,6 +878,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .accounting: return "快捷记账"
+        case .reminders: return "快捷添加提醒事项"
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
@@ -941,6 +946,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .accounting: return [DefaultsKey.accountingShortcutEnabled]
+        case .reminders: return [DefaultsKey.remindersShortcutEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
@@ -977,6 +983,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
         case .accounting: return .accounting
+        case .reminders: return .reminders
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar

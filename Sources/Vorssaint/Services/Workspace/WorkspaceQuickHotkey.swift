@@ -1,35 +1,39 @@
-import Carbon.HIToolbox
+import Foundation
+import Combine
 import AppKit
 
-final class WorkspaceQuickHotkey {
+final class WorkspaceQuickHotkey: ObservableObject {
     static let shared = WorkspaceQuickHotkey()
-    private var ref: EventHotKeyRef?
-    private var handler: EventHandlerRef?
+    @Published private(set) var registrationFailed = false
+    private let hotkey = QuickToolHotkey(id: 91)
+
+    private init() {
+        hotkey.onPress = {
+            guard !ShortcutCapture.isCapturing else { return }
+            (NSApp.delegate as? AppDelegate)?.openWorkspaceTaskComposer()
+        }
+    }
 
     func start() {
-        guard AppFeature.reminders.isAvailable, ref == nil else { return }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetEventDispatcherTarget(), { _, event, userData -> OSStatus in
-            guard let event, let userData else { return OSStatus(eventNotHandledErr) }
-            var id = EventHotKeyID()
-            GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
-            guard id.signature == 0x5655_5753 else { return OSStatus(eventNotHandledErr) }
-            let service = Unmanaged<WorkspaceQuickHotkey>.fromOpaque(userData).takeUnretainedValue()
-            DispatchQueue.main.async { service.activate() }
-            return noErr
-        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
-        var newRef: EventHotKeyRef?
-        let id = EventHotKeyID(signature: 0x5655_5753, id: 1)
-        RegisterEventHotKey(17, UInt32(cmdKey | optionKey), id, GetEventDispatcherTarget(), 0, &newRef)
-        ref = newRef
+        syncWithPreferences()
+    }
+
+    func syncAfterCapture() {
+        syncWithPreferences()
     }
 
     func stop() {
-        if let ref { UnregisterEventHotKey(ref); self.ref = nil }
-        if let handler { RemoveEventHandler(handler); self.handler = nil }
+        _ = hotkey.sync(enabled: false, shortcut: .remindersDefault,
+                        storageKey: DefaultsKey.remindersShortcut)
+        registrationFailed = false
     }
 
-    private func activate() {
-        (NSApp.delegate as? AppDelegate)?.openWorkspaceTaskComposer()
+    func syncWithPreferences() {
+        let enabled = AppFeature.reminders.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.remindersShortcutEnabled)
+            && !ShortcutCapture.isCapturing
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.remindersShortcut, fallback: .remindersDefault)
+        registrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                          storageKey: DefaultsKey.remindersShortcut)
     }
 }
