@@ -1,8 +1,21 @@
 import {build} from 'esbuild';
 import {mkdir,copyFile,readFile,writeFile,readdir,cp} from 'node:fs/promises';
+import {createRequire} from 'node:module';
 const out='../../Resources/NoteWeb';
 await mkdir(out,{recursive:true});
-await build({entryPoints:['src/react-app.tsx'],bundle:true,minify:true,format:'iife',target:'safari17',outfile:out+'/editor.js',legalComments:'eof',define:{'process.env.NODE_ENV':'"production"'},conditions:['production']});
+const options={bundle:true,minify:true,format:'iife',target:'safari17',legalComments:'eof',define:{'process.env.NODE_ENV':'"production"'},conditions:['production']};
+await build({...options,entryPoints:['src/react-app.tsx'],outfile:out+'/editor.js'});
+const require=createRequire(import.meta.url);
+const shared={react:'__notesReact','react-dom':'__notesReactDOM','react/jsx-runtime':'__notesJsxRuntime'};
+const sharedReact={name:'shared-react',setup(builder){
+  builder.onResolve({filter:/^(react|react-dom)(\/.*)?$/},args=>shared[args.path]?{path:args.path,namespace:'shared-react'}:undefined);
+  builder.onLoad({filter:/.*/,namespace:'shared-react'},args=>{
+    const names=Object.keys(require(args.path)).filter(name=>name!=='default');
+    const source=`const shared=window.${shared[args.path]};\nexport default shared;\n`+names.map(name=>`export const ${name}=shared.${name};`).join('\n');
+    return {contents:source,loader:'js'};
+  });
+}};
+await build({...options,entryPoints:['src/canvas-entry.ts'],outfile:out+'/canvas.js',globalName:'VorssaintCanvas',plugins:[sharedReact]});
 await copyFile('src/index.html',out+'/index.html');
 const {default:postcss}=await import('postcss');
 const {default:tailwind}=await import('@tailwindcss/postcss');

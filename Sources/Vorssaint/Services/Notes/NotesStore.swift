@@ -194,6 +194,9 @@ final class NotesStore: ObservableObject {
         notes = snapshot.0; links = snapshot.1
     }
     func outgoing(_ id: UUID) -> [String] { links[id.uuidString.lowercased()] ?? [] }
+    func documentSignature(_ note: NoteDocument) -> String? {
+        try? repository.signature(repository.url(for: note))
+    }
     func document(_ id: UUID) -> NoteDocument? {
         guard let metadata = notes.first(where:{$0.id == id}) else { return nil }
         do { return try queue.sync { try repository.read(repository.url(for:metadata)) } }

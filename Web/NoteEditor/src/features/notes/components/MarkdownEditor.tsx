@@ -575,7 +575,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
 		view.requestMeasure();
 		view.focus();
 	} }), [insert]);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const view = viewRef.current;
 		if (!view) return;
 		if (documentKeyRef.current !== documentKey && createStateRef.current) {

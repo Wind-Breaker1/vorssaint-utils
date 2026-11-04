@@ -10,7 +10,7 @@ html,body,#app{height:100%;margin:0;overflow:hidden}body{background:var(--color-
 .station-card-flat{background:var(--station-smoke-surface);border-color:var(--color-station-line);box-shadow:none;text-shadow:none}.station-popup,.station-tooltip-content{background:var(--color-station-raised);color:var(--color-station-text);border:1px solid var(--color-station-line);text-shadow:none}.station-tag-chip{border-radius:5px}
 .markdown-preview{padding:0.25rem 0.85rem 3rem;color:var(--color-station-text);line-height:1.75}.markdown-preview img,.markdown-preview svg{max-width:100%}.markdown-preview>:is(h2,h3,h4,h5,h6):first-child{margin-top:0}.markdown-preview :is(h1,h2,h3,h4,h5,h6){text-align:left;color:var(--color-station-text)}.markdown-preview h1{margin-top:16px;border-bottom:1px solid var(--color-station-line);font-size:1.35rem}.markdown-preview h2{border-bottom-color:var(--color-station-line)}.markdown-preview strong{color:var(--color-station-text)}.markdown-preview pre{background:var(--station-smoke-surface);border-color:var(--color-station-line);border-radius:7px}.markdown-preview code{background:var(--station-smoke-surface);border-radius:4px}.markdown-preview pre code{background:transparent}
 #app .cm-editor{color:var(--color-station-text);background:var(--note-editor-bg);border-radius:6px}#app .cm-gutters{color:var(--color-station-subtle)}#app .cm-activeLine{background:var(--station-smoke-surface)}#app .cm-activeLineGutter{color:var(--color-station-accent);background:transparent}#app .cm-content{caret-color:var(--color-station-accent)}#app .cm-cursor,#app .cm-dropCursor{border-left-color:var(--color-station-accent)}#app .cm-selectionBackground{background:color-mix(in srgb,var(--color-station-accent) 25%,transparent)}#app .cm-matchingBracket{color:var(--color-station-text);background:var(--station-smoke-surface);outline-color:var(--color-station-line-strong)}
-.excalidraw-canvas>.excalidraw,.excalidraw.excalidraw-modal-container{--station-excalidraw-surface:var(--color-station-panel);--station-excalidraw-surface-strong:var(--color-station-raised);--popup-secondary-bg-color:var(--color-station-surface)}
+.excalidraw-canvas>.excalidraw,.excalidraw.excalidraw-modal-container{--station-excalidraw-surface:rgb(42 44 48 / 94%);--station-excalidraw-surface-strong:rgb(42 44 48 / 98%);--popup-secondary-bg-color:var(--color-station-surface)}
 @media(prefers-contrast:more){:root{--color-station-line:GrayText;--color-station-subtle:var(--color-station-muted)}}
 /* Dark frosted surfaces: retain depth without the original coloured wallpaper. */
 :root{
@@ -47,12 +47,18 @@ html,body,#app{height:100%;margin:0;overflow:hidden}body{background:var(--color-
   backdrop-filter:blur(24px) saturate(115%);
   -webkit-backdrop-filter:blur(24px) saturate(115%);
 }
+/* Canvas owns the changing backdrop; keep its ancestor out of the blur chain. */
+.station-panel:has(> [aria-hidden='false'] > .excalidraw-canvas){
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
 .station-list-item{padding:8px;background:rgb(255 255 255 / 6%);border:1px solid rgb(255 255 255 / 8%);border-radius:7px;box-shadow:inset 0 1px 0 rgb(255 255 255 / 4%);text-shadow:none}
 .station-list-item:hover{background:rgb(255 255 255 / 10%);border-color:rgb(255 255 255 / 13%)}
 .station-list-item[data-selected='true']{
   background:linear-gradient(135deg,rgb(140 174 240 / 18%),rgb(140 174 240 / 9%));
   border-color:rgb(140 174 240 / 22%);
 }
+#note-list .station-list-item{transition:none}
 .station-item-bar{display:none}
 .station-button-secondary{background:rgb(255 255 255 / 6%);border-color:rgb(255 255 255 / 9%);box-shadow:inset 0 1px 0 rgb(255 255 255 / 5%)}
 .station-input,.station-input-field,.station-input-trigger,.station-textarea{background:rgb(0 0 0 / 15%);border-color:rgb(255 255 255 / 9%)}

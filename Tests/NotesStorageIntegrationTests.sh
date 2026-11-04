@@ -13,7 +13,7 @@ let id = UUID(), drawingID = UUID()
 var note = NoteDocument(id:id,title:"中文搜索 migration",body:"# 标题\n\n跨行内容\n---\n[[画板|\(drawingID.uuidString)]]\nsearchable long phrase",updatedAt:Date(timeIntervalSince1970:1700000000))
 note.tags = ["学习"]
 note.properties = [NoteProperty(name:"状态",kind:"文本",value:"完成")]
-var drawing = NoteDocument(id:drawingID,title:"画板",body:#"{"elements":[{"type":"text","text":"画板文字 searchable"}],"files":{"image":{"dataURL":"data:image/png;base64,test"}},"appState":{}}"#,updatedAt:note.updatedAt)
+var drawing = NoteDocument(id:drawingID,title:"画板",body:#"{"elements":[{"type":"text","text":"画板文字 searchable"},{"type":"image","fileId":"image"}],"files":{"image":{"dataURL":"data:image/png;base64,test"}},"appState":{}}"#,updatedAt:note.updatedAt)
 drawing.type = "excalidraw"
 try repository.write(note)
 try repository.write(drawing)
@@ -27,6 +27,16 @@ let storedFiles = storedScene["files"] as! [String:[String:Any]]
 assert((storedFiles["image"]?["dataURL"] as? String)?.hasPrefix("assets/") == true)
 let scene = try JSONSerialization.jsonObject(with:Data(readDrawing.body.utf8)) as! [String:Any]
 assert(scene["files"] != nil && scene["vorssaint"] == nil)
+// Subsequent edits carry attachment references implicitly, without resending binary data.
+var editedScene = scene
+editedScene["files"] = [:] as [String:Any]
+drawing.body = String(decoding:try JSONSerialization.data(withJSONObject:editedScene),as:UTF8.self)
+try repository.write(drawing)
+let reopened = try repository.read(repository.url(for:drawing))
+let reopenedScene = try JSONSerialization.jsonObject(with:Data(reopened.body.utf8)) as! [String:Any]
+let reopenedFiles = reopenedScene["files"] as! [String:[String:Any]]
+assert((reopenedFiles["image"]?["dataURL"] as? String)?.hasPrefix("data:image/png;base64,") == true)
+
 assert(FileManager.default.fileExists(atPath:repository.attachments.appendingPathComponent("image.png").path))
 note.body += "\nmodified after initial write"
 try repository.write(note)

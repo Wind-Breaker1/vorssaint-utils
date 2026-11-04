@@ -211,6 +211,9 @@
   .invisible {
     visibility: hidden;
   }
+  .visible {
+    visibility: visible;
+  }
   .sr-only {
     position: absolute;
     width: 1px;
@@ -2718,21 +2721,6 @@
 	background: transparent;
 }
 
-/* 初始化期间仅保留一个透明层，避免把底部的 Station 毛玻璃卡片盖成纯色。 */
-.excalidraw-canvas::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	z-index: 100;
-	pointer-events: none;
-	background: transparent;
-	opacity: 0;
-}
-
-.excalidraw-canvas[data-ready='false']::before {
-	opacity: 1;
-}
-
 .excalidraw-canvas > .excalidraw,
 .excalidraw.excalidraw-modal-container {
 	--default-bg-color: transparent;
@@ -2742,7 +2730,7 @@
 	--input-border-color: color-mix(in srgb, var(--color-station-text) 16%, transparent);
 	--input-hover-bg-color: color-mix(in srgb, var(--color-station-panel) 92%, white);
 	--input-label-color: var(--color-station-muted);
-	/* Excalidraw 的控件沿用 Station 的深色玻璃承托，不再出现独立的纯黑工具岛。 */
+	/* Canvas 浮层使用稳定的半透明材质，避免 WebKit 背景模糊采样滞后。 */
 	--station-excalidraw-surface: rgb(20 22 32 / 76%);
 	--station-excalidraw-surface-strong: rgb(20 22 32 / 90%);
 	--island-bg-color: var(--station-excalidraw-surface);
@@ -2811,36 +2799,24 @@
 	background: transparent !important;
 }
 
-/* Excalidraw 首帧仍可能使用深色默认画布，等 initialData 应用完成后再显示。 */
-.excalidraw-canvas[data-ready='false'] > .excalidraw {
+/* 场景切换只遮住 Canvas 中间帧，保留复用组件的工具栏和缩放控件。 */
+.excalidraw-canvas[data-ready='false'] .excalidraw__canvas {
 	visibility: hidden;
 }
 
-.excalidraw-canvas > .excalidraw .Island {
+.excalidraw-canvas > .excalidraw .Island,
+.excalidraw-canvas > .excalidraw .App-menu__left,
+.excalidraw-canvas > .excalidraw .App-mobile-menu {
 	border: 1px solid var(--default-border-color);
 	background-color: var(--station-excalidraw-surface);
 	background-image: var(--station-frost-surface);
 	box-shadow: var(--shadow-island);
-	backdrop-filter: blur(16px) saturate(150%);
-	-webkit-backdrop-filter: blur(16px) saturate(150%);
 }
 
 .excalidraw-canvas > .excalidraw .App-menu__left,
 .excalidraw-canvas > .excalidraw .App-mobile-menu {
 	--button-bg: color-mix(in srgb, var(--color-station-panel) 88%, white);
 	--button-hover-bg: color-mix(in srgb, var(--color-station-accent) 18%, var(--color-station-panel));
-}
-
-/* 工具栏：让普通、悬停、选中和按下状态有清晰但克制的层次。 */
-.excalidraw-canvas > .excalidraw .App-toolbar,
-.excalidraw-canvas > .excalidraw .App-menu__left,
-.excalidraw-canvas > .excalidraw .App-mobile-menu {
-	border: 1px solid var(--default-border-color);
-	background-color: var(--station-excalidraw-surface);
-	background-image: var(--station-frost-surface);
-	box-shadow: var(--shadow-island);
-	backdrop-filter: blur(16px) saturate(150%);
-	-webkit-backdrop-filter: blur(16px) saturate(150%);
 }
 
 .excalidraw-canvas > .excalidraw .App-toolbar-container {
@@ -2910,8 +2886,6 @@
 	background-color: var(--station-excalidraw-surface-strong);
 	background-image: var(--station-frost-surface);
 	box-shadow: var(--modal-shadow);
-	backdrop-filter: blur(20px) saturate(150%);
-	-webkit-backdrop-filter: blur(20px) saturate(150%);
 }
 
 .excalidraw-canvas > .excalidraw .dropdown-menu-item,
@@ -2936,7 +2910,6 @@
 
 .excalidraw-canvas > .excalidraw .Modal__background {
 	background: rgb(20 12 14 / 58%);
-	backdrop-filter: blur(2px);
 }
 
 .excalidraw-canvas > .excalidraw .Modal__content {
@@ -2970,8 +2943,6 @@
 	background-color: var(--station-excalidraw-surface) !important;
 	background-image: var(--station-frost-surface) !important;
 	box-shadow: var(--shadow-island) !important;
-	backdrop-filter: blur(16px) saturate(150%);
-	-webkit-backdrop-filter: blur(16px) saturate(150%);
 	transition:
 		background-color 140ms ease,
 		border-color 140ms ease,
@@ -3076,8 +3047,6 @@
 	background-image: var(--station-frost-surface) !important;
 	background-clip: padding-box;
 	box-shadow: var(--modal-shadow);
-	backdrop-filter: blur(22px) saturate(155%);
-	-webkit-backdrop-filter: blur(22px) saturate(155%);
 }
 
 .excalidraw-canvas > .excalidraw .sidebar .layer-ui__library,
@@ -3095,7 +3064,6 @@
  */
 .excalidraw.excalidraw-modal-container .Modal__background {
 	background: rgb(33 25 27 / 58%);
-	backdrop-filter: blur(6px);
 }
 
 .excalidraw.excalidraw-modal-container .Modal__content {
@@ -3156,7 +3124,7 @@ html,body,#app{height:100%;margin:0;overflow:hidden}body{background:var(--color-
 .station-card-flat{background:var(--station-smoke-surface);border-color:var(--color-station-line);box-shadow:none;text-shadow:none}.station-popup,.station-tooltip-content{background:var(--color-station-raised);color:var(--color-station-text);border:1px solid var(--color-station-line);text-shadow:none}.station-tag-chip{border-radius:5px}
 .markdown-preview{padding:0.25rem 0.85rem 3rem;color:var(--color-station-text);line-height:1.75}.markdown-preview img,.markdown-preview svg{max-width:100%}.markdown-preview>:is(h2,h3,h4,h5,h6):first-child{margin-top:0}.markdown-preview :is(h1,h2,h3,h4,h5,h6){text-align:left;color:var(--color-station-text)}.markdown-preview h1{margin-top:16px;border-bottom:1px solid var(--color-station-line);font-size:1.35rem}.markdown-preview h2{border-bottom-color:var(--color-station-line)}.markdown-preview strong{color:var(--color-station-text)}.markdown-preview pre{background:var(--station-smoke-surface);border-color:var(--color-station-line);border-radius:7px}.markdown-preview code{background:var(--station-smoke-surface);border-radius:4px}.markdown-preview pre code{background:transparent}
 #app .cm-editor{color:var(--color-station-text);background:var(--note-editor-bg);border-radius:6px}#app .cm-gutters{color:var(--color-station-subtle)}#app .cm-activeLine{background:var(--station-smoke-surface)}#app .cm-activeLineGutter{color:var(--color-station-accent);background:transparent}#app .cm-content{caret-color:var(--color-station-accent)}#app .cm-cursor,#app .cm-dropCursor{border-left-color:var(--color-station-accent)}#app .cm-selectionBackground{background:color-mix(in srgb,var(--color-station-accent) 25%,transparent)}#app .cm-matchingBracket{color:var(--color-station-text);background:var(--station-smoke-surface);outline-color:var(--color-station-line-strong)}
-.excalidraw-canvas>.excalidraw,.excalidraw.excalidraw-modal-container{--station-excalidraw-surface:var(--color-station-panel);--station-excalidraw-surface-strong:var(--color-station-raised);--popup-secondary-bg-color:var(--color-station-surface)}
+.excalidraw-canvas>.excalidraw,.excalidraw.excalidraw-modal-container{--station-excalidraw-surface:rgb(42 44 48 / 94%);--station-excalidraw-surface-strong:rgb(42 44 48 / 98%);--popup-secondary-bg-color:var(--color-station-surface)}
 @media(prefers-contrast:more){:root{--color-station-line:GrayText;--color-station-subtle:var(--color-station-muted)}}
 /* Dark frosted surfaces: retain depth without the original coloured wallpaper. */
 :root{
@@ -3193,12 +3161,18 @@ html,body,#app{height:100%;margin:0;overflow:hidden}body{background:var(--color-
   backdrop-filter:blur(24px) saturate(115%);
   -webkit-backdrop-filter:blur(24px) saturate(115%);
 }
+/* Canvas owns the changing backdrop; keep its ancestor out of the blur chain. */
+.station-panel:has(> [aria-hidden='false'] > .excalidraw-canvas){
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
 .station-list-item{padding:8px;background:rgb(255 255 255 / 6%);border:1px solid rgb(255 255 255 / 8%);border-radius:7px;box-shadow:inset 0 1px 0 rgb(255 255 255 / 4%);text-shadow:none}
 .station-list-item:hover{background:rgb(255 255 255 / 10%);border-color:rgb(255 255 255 / 13%)}
 .station-list-item[data-selected='true']{
   background:linear-gradient(135deg,rgb(140 174 240 / 18%),rgb(140 174 240 / 9%));
   border-color:rgb(140 174 240 / 22%);
 }
+#note-list .station-list-item{transition:none}
 .station-item-bar{display:none}
 .station-button-secondary{background:rgb(255 255 255 / 6%);border-color:rgb(255 255 255 / 9%);box-shadow:inset 0 1px 0 rgb(255 255 255 / 5%)}
 .station-input,.station-input-field,.station-input-trigger,.station-textarea{background:rgb(0 0 0 / 15%);border-color:rgb(255 255 255 / 9%)}

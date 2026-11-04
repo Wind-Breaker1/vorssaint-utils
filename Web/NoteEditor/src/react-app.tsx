@@ -1,15 +1,22 @@
 import { encode, decode, type Stored } from "./features/notes/noteCodec";
 import { NoteMetadata } from "./features/notes/components/NoteMetadata";
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+import * as JSXRuntime from "react/jsx-runtime";
+Object.assign(window, {
+  __notesReact: React,
+  __notesReactDOM: ReactDOM,
+  __notesJsxRuntime: JSXRuntime,
+});
 (window as any).EXCALIDRAW_ASSET_PATH = new URL(
   "./",
   window.location.href,
 ).href;
-import { ExcalidrawCanvas } from "./features/notes/components/ExcalidrawCanvas";
 import { NoteCreateButtons } from "./features/notes/components/NoteCreateButtons";
 import { SearchInput } from "./shared/components/SearchInput";
 import { EmptyCard } from "./shared/components/EmptyCard";
 import { NoteLinksPane } from "./features/notes/components/NoteLinksPane";
-import { useState, useRef, useMemo, useEffect, useDeferredValue, useLayoutEffect } from "react";
+import { lazy, Suspense, useState, useRef, useMemo, useEffect, useDeferredValue, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import {
   MarkdownPreview,
@@ -33,6 +40,24 @@ type Card = {
   tags?: string[];
   type?: "markdown" | "excalidraw";
 };
+type CanvasModule = { default: typeof import("./features/notes/components/ExcalidrawCanvas").ExcalidrawCanvas };
+let canvasLoad: Promise<CanvasModule> | undefined;
+function loadCanvasModule(): Promise<CanvasModule> {
+  return canvasLoad ??= new Promise<CanvasModule>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "canvas.js";
+    script.onload = () => {
+      const component = (window as any).VorssaintCanvas?.ExcalidrawCanvas;
+      if (component) resolve({ default: component });
+      else reject(new Error("画板模块未初始化"));
+    };
+    script.onerror = () => reject(new Error("画板模块加载失败"));
+    document.head.append(script);
+  }).catch(() => ({
+    default: () => <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-station-danger">画板加载失败，请重新打开笔记窗口。</div>,
+  }));
+}
+const ExcalidrawCanvas = lazy(loadCanvasModule);
 const post = (type: string, payload: object = {}) =>
   (window as any).webkit?.messageHandlers.notes.postMessage({
     type,
@@ -91,7 +116,7 @@ function Reading({
 }
 const VIRTUAL_NOTE_HEIGHT = 82;
 const VIRTUAL_OVERSCAN = 6;
-function VirtualNoteList({ items, currentID, onOpen }: { items: Card[]; currentID: string; onOpen: (id: string) => void }): React.JSX.Element {
+function VirtualNoteList({ items, currentNote, onOpen }: { items: Card[]; currentNote: NoteDetail; onOpen: (id: string) => void }): React.JSX.Element {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -110,11 +135,12 @@ function VirtualNoteList({ items, currentID, onOpen }: { items: Card[]; currentI
     <div style={{ height: items.length * VIRTUAL_NOTE_HEIGHT, position: 'relative' }}>
       <div style={{ position: 'absolute', top: start * VIRTUAL_NOTE_HEIGHT, left: 0, right: 0 }}>
         {items.slice(start, end).map((item, offset) => {
-          const index = start + offset;
+          const index = offset;
+          const selected = item.id === currentNote.id;
           return <div key={item.id} className="absolute left-0 right-0" style={{ top: index * VIRTUAL_NOTE_HEIGHT, height: 72 }}>
-            <button type="button" data-selected={item.id === currentID || undefined} aria-current={item.id === currentID ? 'page' : undefined} className="station-list-item relative flex h-full w-full min-w-0 flex-col gap-1 text-left !pl-2" onClick={() => onOpen(item.id)}>
-              <span className="station-item-bar" /><span className="flex min-w-0 items-center gap-2"><Icon name={item.type === 'excalidraw' ? 'excalidraw' : 'notes'} className="size-4 shrink-0 text-station-accent" /><span className="truncate text-sm">{item.title || '未命名笔记'}</span></span>
-              <span className="line-clamp-2 text-xs leading-4 text-station-muted">{item.type === 'excalidraw' ? 'Excalidraw 画板' : item.body.slice(0, 160) || '暂无摘要'}</span>
+            <button type="button" data-selected={selected || undefined} aria-current={selected ? 'page' : undefined} className="station-list-item relative flex h-full w-full min-w-0 flex-col gap-1 text-left !pl-2" onClick={() => { if (item.type === 'excalidraw') void loadCanvasModule(); onOpen(item.id); }}>
+              <span className="station-item-bar" /><span className="flex min-w-0 items-center gap-2"><Icon name={item.type === 'excalidraw' ? 'excalidraw' : 'notes'} className="size-4 shrink-0 text-station-accent" /><span className="truncate text-sm">{(selected ? currentNote.title : item.title) || '未命名笔记'}</span></span>
+              <span className="line-clamp-2 text-xs leading-4 text-station-muted">{item.type === 'excalidraw' ? 'Excalidraw 画板' : (selected ? currentNote.content : item.body).slice(0, 160) || '暂无摘要'}</span>
             </button>
           </div>;
         })}
@@ -124,13 +150,26 @@ function VirtualNoteList({ items, currentID, onOpen }: { items: Card[]; currentI
 }
 function App() {
   const [note, setNote] = useState<NoteDetail>();
+  const activeNote = useRef<NoteDetail | undefined>(undefined);
   const [notes, setNotes] = useState<Card[]>([]);
-  const [editing, setEditing] = useState(true);
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const [editing, setEditing] = useState(false);
   const [zen, setZen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const canvasDocument = useRef<{ id: string; content: string } | null>(null);
+  if (note?.type === "excalidraw") canvasDocument.current = { id: note.id, content: note.content };
   const [canvasMounted, setCanvasMounted] = useState(false);
   useEffect(() => {
-    if (note?.type === "excalidraw") setCanvasMounted(true);
+    if (note?.type === "excalidraw") {
+      setCanvasMounted(true);
+      return;
+    }
+    // Reuse during quick switching, release images and canvas caches when idle.
+    const timer = setTimeout(() => {
+      setCanvasMounted(false);
+      canvasDocument.current = null;
+    }, 30_000);
+    return () => clearTimeout(timer);
   }, [note?.type]);
   const [sideTab, setSideTab] = useState("outline");
   const [tagDraft, setTagDraft] = useState("");
@@ -155,26 +194,27 @@ function App() {
       150,
     );
     return () => clearTimeout(timer);
-  }, [listQuery, notes]);
+  }, [listQuery, catalogRevision]);
   const filteredNotes = useMemo(() => {
     const term = listQuery.trim().toLowerCase();
+    if (!term) return notes;
     return notes.filter(
       (item) =>
-        !term ||
-        searchIDs?.has(item.id.toLowerCase()) ||
+        (item.id !== note?.id && searchIDs?.has(item.id.toLowerCase())) ||
         (item.id === note?.id &&
-          `${item.title} ${item.type === "excalidraw" ? "" : item.body} ${(item.tags ?? []).join(" ")}`
+          `${item.title} ${item.type === "excalidraw" ? "" : note?.content} ${(item.tags ?? []).join(" ")}`
             .toLowerCase()
             .includes(term)),
     );
-  }, [listQuery, searchIDs, notes, note?.id]);
+  }, [listQuery, searchIDs, notes, note?.id, note?.content]);
   const [heading, setHeading] = useState("");
   const ref = useRef<MarkdownEditorHandle>(null);
   const previewRef = useRef<MarkdownPreviewHandle>(null);
   useEffect(() => {
     if (editing) ref.current?.resume();
   }, [editing]);
-  const deferred = useDeferredValue(note?.content ?? "");
+  const deferredNote = useDeferredValue(note);
+  const deferred = note?.type === "markdown" ? (deferredNote?.id === note.id ? deferredNote.content : note.content) : "";
   const wordCount = useMemo(
     () => deferred.match(/[\u4e00-\u9fff]|[\p{L}\p{N}_-]+/gu)?.length ?? 0,
     [deferred],
@@ -184,10 +224,20 @@ function App() {
       note?.type === "excalidraw" ? [] : extractMarkdownHeadings(deferred),
     [deferred, note?.type],
   );
-  updateCatalog = (list) => setNotes(list);
+  const linkSuggestions = useMemo(() => {
+    const term = query?.toLowerCase();
+    return notes.filter(item => item.id !== note?.id && (!term || item.title.toLowerCase().includes(term)));
+  }, [notes, note?.id, query]);
+  updateCatalog = (list) => { setNotes(list); setCatalogRevision(value => value + 1); };
   load = (data, list, anchor) => {
+    setCatalogRevision(value => value + 1);
     previewRef.current?.scrollToLine(1);
-    setNote(decode(data));
+    const decoded = decode(data);
+    if (activeNote.current?.id !== decoded.id) {
+      setEditing(decoded.type === "excalidraw");
+    }
+    activeNote.current = decoded;
+    setNote(decoded);
     setConfirmDelete(false);
     setNotes(
       list.some((item) => item.id === data.id)
@@ -196,7 +246,7 @@ function App() {
             {
               id: data.id,
               title: data.title,
-              body: data.body,
+              body: data.type === "excalidraw" ? "" : data.body.slice(0, 160),
               type: data.type,
             },
             ...list,
@@ -213,6 +263,7 @@ function App() {
     if (!/^(已保存|正在保存|正在加载)/.test(text)) statusSetter(text);
   };
   clear = () => {
+    activeNote.current = undefined;
     setNote(undefined);
     setNotes([]);
   };
@@ -252,28 +303,16 @@ function App() {
     }
   }, [note?.id, heading, headings, editing]);
   function change(patch: Partial<NoteDetail>) {
-    if (!note) return;
-    const next = { ...note, ...patch };
+    if (!note || activeNote.current?.id !== note.id) return;
+    const next = { ...activeNote.current, ...patch };
+    if (Object.entries(patch).every(([key, value]) => activeNote.current?.[key as keyof NoteDetail] === value)) return;
+    activeNote.current = next;
     setNote(next);
-    setNotes((list) =>
-      list.map((item) =>
-        item.id === next.id
-          ? {
-              ...item,
-              title: next.title,
-              body: next.content,
-              tags: next.tags,
-              type: next.type,
-              outgoingIDs: undefined,
-            }
-          : item,
-      ),
-    );
     post("change", { note: encode(next) });
   }
-  function open(id: string, anchor?: string) {
+  const open = useCallback((id: string, anchor?: string) => {
     post("openNote", { id: id + (anchor ? "#" + anchor : "") });
-  }
+  }, []);
   function commitTag(raw = tagDraft) {
     const value = raw.trim().replace(/^#+/, "").trim();
     if (value && note && !note.tags.includes(value))
@@ -287,7 +326,7 @@ function App() {
           <span>选择笔记类型开始记录</span>
           <NoteCreateButtons
             onCreate={(type) => {
-              setEditing(true);
+              if (type === "excalidraw") void loadCanvasModule();
               post("createNote", { noteType: type });
             }}
           />
@@ -310,8 +349,8 @@ function App() {
             <NoteCreateButtons
               className="w-full"
               onCreate={(type) => {
+                if (type === "excalidraw") void loadCanvasModule();
                 commitTag();
-                setEditing(true);
                 post("createNote", { noteType: type });
               }}
             />
@@ -320,7 +359,7 @@ function App() {
               onChange={setListQuery}
               placeholder="搜索笔记"
             />
-            {filteredNotes.length ? <VirtualNoteList items={filteredNotes} currentID={note.id} onOpen={(id) => { if (id !== note.id) { commitTag(); open(id); } }} /> : <div className="min-h-0 flex-1 overflow-y-auto pr-2"><EmptyCard variant="plain" icon="notes">{listQuery ? "没有匹配的笔记" : "暂无笔记"}</EmptyCard></div>}
+            {filteredNotes.length ? <VirtualNoteList items={filteredNotes} currentNote={note} onOpen={(id) => { if (id !== note.id) { commitTag(); open(id); } }} /> : <div className="min-h-0 flex-1 overflow-y-auto pr-2"><EmptyCard variant="plain" icon="notes">{listQuery ? "没有匹配的笔记" : "暂无笔记"}</EmptyCard></div>}
           </aside>
         )}
         <section className="station-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -390,18 +429,17 @@ function App() {
             aria-hidden={note.type !== "excalidraw"}
           >
             {(canvasMounted || note.type === "excalidraw") && (
-              <ExcalidrawCanvas
-                documentKey={note.id}
-                value={
-                  note.type === "excalidraw"
-                    ? note.content
-                    : '{"elements":[],"appState":{},"files":{}}'
-                }
-                readonly={!editing || note.type !== "excalidraw"}
-                onChange={(content) => {
-                  if (note.type === "excalidraw") change({ content });
-                }}
-              />
+              <Suspense fallback={<div className="flex min-h-0 flex-1 items-center justify-center text-xs text-station-muted">正在打开画板…</div>}>
+                <ExcalidrawCanvas
+                  documentKey={canvasDocument.current!.id}
+                  value={canvasDocument.current!.content}
+                  active={note.type === "excalidraw"}
+                  readonly={!editing || note.type !== "excalidraw"}
+                  onChange={(content) => {
+                    if (note.type === "excalidraw") change({ content });
+                  }}
+                />
+              </Suspense>
             )}
           </div>
           {note.type === "markdown" && (
@@ -414,12 +452,7 @@ function App() {
                   value={note.content}
                   onChange={(content) => change({ content })}
                   onAttachmentUpload={upload}
-                  linkSuggestions={notes.filter(
-                    (n) =>
-                      n.id !== note.id &&
-                      (!query ||
-                        n.title.toLowerCase().includes(query.toLowerCase())),
-                  )}
+                  linkSuggestions={linkSuggestions}
                   onLinkQueryChange={setQuery}
                   onScrollLine={(line, edge) => {
                     if (editing) previewRef.current?.scrollToLine(line, edge);
@@ -557,6 +590,7 @@ root.render(<App />);
     load(data, list, heading),
   insert: (text: string) => insert(text),
   status: (text: string) => setStatus(text),
+  saved: (id: string, files: string[]) => window.dispatchEvent(new CustomEvent('drawing-saved', { detail: { id, files } })),
   attachmentResult: (id: string, text: string, error?: string) => {
     const request = requests.get(id);
     requests.delete(id);

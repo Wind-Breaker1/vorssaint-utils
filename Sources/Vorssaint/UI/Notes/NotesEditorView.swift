@@ -50,6 +50,8 @@ private struct NoteWebEditor: NSViewRepresentable {
         private var saveWork: DispatchWorkItem?
         private var dirty = false
         private var saveGeneration = 0
+        private var loadedSignature: String?
+        private var loadGeneration = 0
         init(note: NoteDocument) {
             self.note = note
             super.init()
@@ -79,6 +81,7 @@ private struct NoteWebEditor: NSViewRepresentable {
                 else { call("window.notesApp.clear()") }
                 return
             }
+            guard store.documentSignature(note) != loadedSignature else { return }
             guard let document = store.document(note.id) else { return }
             let changed = document.title != note.title || document.body != note.body || document.tags != note.tags || document.properties != note.properties || document.type != note.type
             note = document
@@ -93,10 +96,14 @@ private struct NoteWebEditor: NSViewRepresentable {
             guard dirty else { return }
             saveGeneration += 1
             let generation = saveGeneration
+            let savedID = note.id.uuidString
+            let savedFiles = note.type == "excalidraw" ? (((try? JSONSerialization.jsonObject(with: Data(note.body.utf8))) as? [String: Any])?["files"] as? [String: Any] ?? [:]) : [:]
             note.updatedAt = Date()
             NotesStore.shared.updateNote(note, wait: wait) { [weak self] success in
                 guard let self, generation == self.saveGeneration else { return }
                 if success {
+                    self.loadedSignature = NotesStore.shared.documentSignature(self.note)
+                    self.call("window.notesApp.saved(id, files)", ["id": savedID, "files": Array(savedFiles.keys)])
                     self.dirty = false
                     self.call("window.notesApp.status(text)", ["text": "已保存"])
                 } else {
@@ -118,9 +125,18 @@ private struct NoteWebEditor: NSViewRepresentable {
             NotesStore.shared.notes.map { ["id": $0.id.uuidString, "title": $0.title, "body": $0.body, "type": $0.type, "tags": $0.tags, "outgoingIDs": NotesStore.shared.outgoing($0.id)] }
         }
         func load(heading: String = "") {
+            loadedSignature = NotesStore.shared.documentSignature(note)
+            loadGeneration += 1
+            let generation = loadGeneration
             let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
             guard let data = try? encoder.encode(note), let value = try? JSONSerialization.jsonObject(with: data) else { return }
-            call("window.notesApp.load(note, notes, heading); requestAnimationFrame(() => requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'})))", ["note": value, "heading": heading, "notes": catalog])
+            let arguments: [String: Any] = ["note": value, "heading": heading, "notes": catalog]
+            Task { @MainActor [weak self] in
+                guard let self, generation == self.loadGeneration, let web = self.web else { return }
+                do {
+                    _ = try await web.callAsyncJavaScript("window.notesApp.load(note, notes, heading); requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'}))", arguments: arguments, in: nil, contentWorld: .page)
+                } catch { NSLog("Note editor: %@", error.localizedDescription) }
+            }
         }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
             guard message.name == "noteClipboard", message.frameInfo.isMainFrame,

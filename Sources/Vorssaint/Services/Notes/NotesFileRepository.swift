@@ -39,7 +39,16 @@ struct NotesFileRepository {
         let data: Data
         if note.type == "excalidraw" {
             guard var scene = try JSONSerialization.jsonObject(with: Data(note.body.utf8)) as? [String: Any] else { throw CocoaError(.fileReadCorruptFile) }
+            // Existing images already live in attachments; scene updates carry only new binaries.
+            var storedFiles: [String: [String: Any]] = [:]
+            if FileManager.default.fileExists(atPath: url(for: note).path) {
+                let previous = try JSONSerialization.jsonObject(with: Data(contentsOf: url(for: note))) as? [String: Any]
+                storedFiles = previous?["files"] as? [String: [String: Any]] ?? [:]
+            }
             if var files = scene["files"] as? [String:[String:Any]] {
+                for (key, image) in storedFiles where files[key] == nil { files[key] = image }
+                let referenced = Set((scene["elements"] as? [[String: Any]] ?? []).compactMap { $0["fileId"] as? String })
+                files = files.filter { referenced.contains($0.key) }
                 for (key,var image) in files {
                     if let value = image["dataURL"] as? String, value.hasPrefix("data:"), let comma = value.firstIndex(of:",") {
                         let header = String(value[value.index(value.startIndex,offsetBy:5)..<comma])
