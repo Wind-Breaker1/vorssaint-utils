@@ -2384,6 +2384,9 @@
   .markdown-preview .markdown-callout > p {
     color: var(--color-station-muted);
   }
+  .markdown-preview .markdown-callout-example {
+    --callout-color: #a78bfa;
+  }
   .markdown-preview .markdown-callout-note {
     --callout-color: var(--color-station-accent);
   }

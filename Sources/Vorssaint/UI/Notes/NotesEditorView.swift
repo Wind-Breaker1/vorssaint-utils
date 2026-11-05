@@ -124,17 +124,17 @@ private struct NoteWebEditor: NSViewRepresentable {
         private var catalog: [[String: Any]] {
             NotesStore.shared.notes.map { ["id": $0.id.uuidString, "title": $0.title, "body": $0.body, "type": $0.type, "tags": $0.tags, "outgoingIDs": NotesStore.shared.outgoing($0.id)] }
         }
-        func load(heading: String = "") {
+        func load(heading: String = "", editing: Bool = false) {
             loadedSignature = NotesStore.shared.documentSignature(note)
             loadGeneration += 1
             let generation = loadGeneration
             let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
             guard let data = try? encoder.encode(note), let value = try? JSONSerialization.jsonObject(with: data) else { return }
-            let arguments: [String: Any] = ["note": value, "heading": heading, "notes": catalog]
+            let arguments: [String: Any] = ["note": value, "heading": heading, "notes": catalog, "editing": editing]
             Task { @MainActor [weak self] in
                 guard let self, generation == self.loadGeneration, let web = self.web else { return }
                 do {
-                    _ = try await web.callAsyncJavaScript("window.notesApp.load(note, notes, heading); requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'}))", arguments: arguments, in: nil, contentWorld: .page)
+                    _ = try await web.callAsyncJavaScript("window.notesApp.load(note, notes, heading, editing); requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'}))", arguments: arguments, in: nil, contentWorld: .page)
                 } catch { NSLog("Note editor: %@", error.localizedDescription) }
             }
         }
@@ -191,7 +191,7 @@ private struct NoteWebEditor: NSViewRepresentable {
                     return
                 }
                 note = created
-                load()
+                load(editing: true)
                 if let error = store.saveError { call("window.notesApp.status(text)", ["text": error]) }
             case "change":
                 guard let value = body["note"] as? [String: Any], let id = value["id"] as? String, UUID(uuidString: id) == note.id, let title = value["title"] as? String, let text = value["body"] as? String else { return }

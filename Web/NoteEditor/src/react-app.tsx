@@ -86,7 +86,7 @@ async function upload(file: File): Promise<string | null> {
     });
   });
 }
-let load: (data: Stored, notes: Card[], heading?: string) => void = () => {};
+let load: (data: Stored, notes: Card[], heading?: string, editing?: boolean) => void = () => {};
 let updateCatalog: (notes: Card[]) => void = () => {};
 let insert: (text: string) => void = () => {};
 let setStatus: (text: string) => void = () => {};
@@ -229,12 +229,12 @@ function App() {
     return notes.filter(item => item.id !== note?.id && (!term || item.title.toLowerCase().includes(term)));
   }, [notes, note?.id, query]);
   updateCatalog = (list) => { setNotes(list); setCatalogRevision(value => value + 1); };
-  load = (data, list, anchor) => {
+  load = (data, list, anchor, startEditing = false) => {
     setCatalogRevision(value => value + 1);
     previewRef.current?.scrollToLine(1);
     const decoded = decode(data);
     if (activeNote.current?.id !== decoded.id) {
-      setEditing(decoded.type === "excalidraw");
+      setEditing(startEditing || decoded.type === "excalidraw");
     }
     activeNote.current = decoded;
     setNote(decoded);
@@ -586,8 +586,8 @@ root.render(<App />);
     deliverSearch(request, ids),
   clear: () => clear(),
   catalog: (list: Card[]) => updateCatalog(list),
-  load: (data: Stored, list: Card[], heading?: string) =>
-    load(data, list, heading),
+  load: (data: Stored, list: Card[], heading?: string, editing = false) =>
+    load(data, list, heading, editing),
   insert: (text: string) => insert(text),
   status: (text: string) => setStatus(text),
   saved: (id: string, files: string[]) => window.dispatchEvent(new CustomEvent('drawing-saved', { detail: { id, files } })),

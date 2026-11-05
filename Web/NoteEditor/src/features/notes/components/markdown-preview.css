@@ -164,6 +164,9 @@
 	.markdown-preview .markdown-callout > p {
 		@apply text-station-muted;
 	}
+	.markdown-preview .markdown-callout-example {
+		--callout-color: #a78bfa;
+	}
 	.markdown-preview .markdown-callout-note {
 		--callout-color: var(--color-station-accent);
 	}

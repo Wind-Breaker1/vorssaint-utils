@@ -65,6 +65,7 @@ const calloutIcons: Record<string, IconName> = {
 	warning: 'warning',
 	danger: 'danger',
 	todo: 'tasks',
+	example: 'property-list',
 };
 
 const editorTheme = EditorView.theme(
@@ -662,6 +663,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
 		{ value: 'warning', label: '警告', icon: calloutIcons.warning },
 		{ value: 'danger', label: '危险', icon: calloutIcons.danger },
 		{ value: 'todo', label: '待办', icon: calloutIcons.todo },
+		{ value: 'example', label: '示例', icon: calloutIcons.example },
 	];
 	const insertCode = (kind: string): void => {
 		if (kind === 'inline') insert('`代码`');

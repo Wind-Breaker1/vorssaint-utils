@@ -23,7 +23,7 @@ export interface RenderedMarkdown {
 	headings: MarkdownHeading[];
 }
 
-const calloutTypes = new Set(['note', 'info', 'tip', 'warning', 'danger', 'todo']);
+const calloutTypes = new Set(['note', 'info', 'tip', 'warning', 'danger', 'todo', 'example']);
 const calloutLabels: Record<string, string> = {
 	note: '笔记',
 	info: '信息',
@@ -31,8 +31,10 @@ const calloutLabels: Record<string, string> = {
 	warning: '警告',
 	danger: '危险',
 	todo: '待办',
+	example: '示例',
 };
 const calloutPaths: Record<string, string> = {
+	example: 'M8 4h13 M8 12h13 M8 20h13 M3 4h.01 M3 12h.01 M3 20h.01',
 	note: 'M6 3.5h9l3 3v14H6z M9 11h6 M9 15h6',
 	info: 'M12 11v6 M12 7v1 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
 	tip: 'M9 18h6 M10 21h4 M8.5 14.5a7 7 0 1 1 7 0c-.9.65-1.5 1.5-1.5 2.5h-4c0-1-.6-1.85-1.5-2.5Z',
