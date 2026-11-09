@@ -159,7 +159,7 @@ struct NotchPagePreview: View {
             NotchNotificationsView(size: size).notchBand(trailing: { NotchClearNotificationsButton() })
         case .downloads: NotchDownloadsView(size: size)
         case .calendar: NotchCalendarView(size: size)
-        case .reminders, .accounting, .notes:
+        case .reminders, .accounting, .notes, .stocks:
             NotchEmptyView(symbol: module.symbol, message: FeatureStrings.notchEditor(l10n.language).summary(module))
         case .controls: NotchControlsView(service: notch, size: size)
         case .mixer: NotchMixerView(size: size)
@@ -392,6 +392,7 @@ extension NotchModule {
     /// can be scanned by eye.
     var settingsTint: Color {
         switch self {
+        case .stocks: return .orange
         case .controls: return .blue
         case .mixer: return .purple
         case .music: return .pink

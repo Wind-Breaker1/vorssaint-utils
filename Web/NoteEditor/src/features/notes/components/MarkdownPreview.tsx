@@ -155,7 +155,6 @@ export const MarkdownPreview = forwardRef<MarkdownPreviewHandle, Props>(function
 	useEffect(() => {
 		const node = article.current;
 		if (!node) return;
-        node.querySelectorAll('img,a').forEach(el=>{const key=el.tagName==='IMG'?'src':'href';const value=el.getAttribute(key)??'';if(value.startsWith('assets/')){el.setAttribute(key,'note-asset://local/'+value.slice(7));if(el.tagName==='A'){const ext=value.split('.').pop()?.toLowerCase();const mime:Record<string,string>={mp3:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',m4a:'audio/mp4',mp4:'video/mp4',webm:'video/webm',mov:'video/quicktime'};if(ext&&mime[ext])el.setAttribute('data-attachment-type',mime[ext])}}});
 		node.querySelectorAll<HTMLAnchorElement>('a[data-attachment-type]').forEach((anchor) => {
 			const type = anchor.dataset.attachmentType ?? '';
 			if (!type.startsWith('audio/') && !type.startsWith('video/')) return;

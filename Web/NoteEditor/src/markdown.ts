@@ -11,6 +11,11 @@ import MarkdownIt from 'markdown-it';
 const SOURCE_LINE_ATTRIBUTE = 'data-source-line';
 const ATTACHMENT_BASE_URL = 'note-asset://local';
 const attachmentUrl = (id: string, _type: string) => `${ATTACHMENT_BASE_URL}/${id}`;
+const relativeAttachmentUrl = (path: string) => `${ATTACHMENT_BASE_URL}/${path.slice('assets/'.length)}`;
+const attachmentTypes: Record<string, string> = {
+	mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4',
+	mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+};
 
 export interface MarkdownHeading {
 	offset: number;
@@ -171,6 +176,8 @@ markdown.core.ruler.after('inline', 'station_callouts', (state) => {
 
 const defaultLinkOpen =
 	markdown.renderer.rules.link_open ?? ((tokens, index, options, _env, renderer) => renderer.renderToken(tokens, index, options));
+const defaultImage =
+	markdown.renderer.rules.image ?? ((tokens, index, options, _env, renderer) => renderer.renderToken(tokens, index, options));
 const defaultBlockquoteOpen =
 	markdown.renderer.rules.blockquote_open ?? ((tokens, index, options, _env, renderer) => renderer.renderToken(tokens, index, options));
 const defaultBlockquoteClose =
@@ -178,7 +185,15 @@ const defaultBlockquoteClose =
 
 /** 仅让外部链接离开应用，内部链接由预览组件接管。 */
 markdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
-	const href = String(tokens[index].attrGet('href') ?? '');
+	let href = String(tokens[index].attrGet('href') ?? '');
+	if (href.startsWith('assets/')) {
+		const path = href;
+		href = relativeAttachmentUrl(path);
+		tokens[index].attrSet('href', href);
+		const extension = path.split(/[?#]/, 1)[0].split('.').pop()?.toLowerCase();
+		const type = extension ? attachmentTypes[extension] : undefined;
+		if (type) tokens[index].attrSet('data-attachment-type', type);
+	}
 	if (/^https?:\/\//i.test(href)) {
 		tokens[index].attrSet('target', '_blank');
 		tokens[index].attrSet('rel', 'noopener noreferrer');
@@ -191,6 +206,12 @@ markdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
 		tokens[index].attrSet('class', 'markdown-attachment-link');
 	}
 	return defaultLinkOpen(tokens, index, options, env, renderer);
+};
+
+markdown.renderer.rules.image = (tokens, index, options, env, renderer) => {
+	const src = String(tokens[index].attrGet('src') ?? '');
+	if (src.startsWith('assets/')) tokens[index].attrSet('src', relativeAttachmentUrl(src));
+	return defaultImage(tokens, index, options, env, renderer);
 };
 
 markdown.renderer.rules.blockquote_open = (tokens, index, options, env, renderer) => {

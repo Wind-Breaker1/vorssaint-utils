@@ -599,6 +599,7 @@ struct SettingsView: View {
         case .media: MediaSettings()
         case .clipboard: ClipboardSettings()
         case .quickTools: QuickToolsSettings()
+        case .stocks: StockSettings()
         case .accounting: AccountingSettings()
         case .notes: NotesStorageSettings()
         case .systemData: SystemDataSettings()

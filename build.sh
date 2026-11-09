@@ -579,6 +579,12 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
         Sources/Vorssaint/Core/SecureInputSupport.swift
+        Sources/Vorssaint/Core/StockStrings.swift
+        Sources/Vorssaint/Services/Stocks/StockModels.swift
+        Sources/Vorssaint/Services/Stocks/StockJournal.swift
+        Sources/Vorssaint/Services/Stocks/StockRepository.swift
+        Sources/Vorssaint/Services/Stocks/StockCSV.swift
+        Sources/Vorssaint/Services/Stocks/StockMarketClient.swift
         Sources/Vorssaint/Services/Accounting/AccountingModels.swift
         Sources/Vorssaint/Services/Accounting/AccountingRepository.swift
         Sources/Vorssaint/Services/Reminders/ReminderModels.swift

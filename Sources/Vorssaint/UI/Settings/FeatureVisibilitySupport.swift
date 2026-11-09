@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, notes, reminders, accounting, systemData, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
+    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, notes, reminders, accounting, systemData, stocks, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -379,6 +379,7 @@ extension AppFeature {
         case .notchMascot: return FeatureSettingsDestination(.notchMascot)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .reminders: return FeatureSettingsDestination(.reminders)
+        case .stocks: return FeatureSettingsDestination(.stocks)
         case .accounting: return FeatureSettingsDestination(.accounting)
         case .notes: return FeatureSettingsDestination(.notes)
         case .systemData: return FeatureSettingsDestination(.systemData)
@@ -423,6 +424,7 @@ enum FeatureVisibilitySupport {
         case .media: return [.mediaTools]
         case .quickTools: return [.quickLauncher, .quickToggles, .quitApps, .micMute,
                                   .cameraPreview, .wallpaper, .scratchpad, .cleaningMode]
+        case .stocks: return [.stocks]
         case .accounting: return [.accounting]
         case .notes: return [.notes]
         case .systemData: return [.systemData]

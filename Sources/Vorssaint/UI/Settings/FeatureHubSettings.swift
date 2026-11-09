@@ -1203,6 +1203,7 @@ extension AppFeature {
         case .notch: return FeatureStrings.notch(language).title
         case .radialMenu: return FeatureStrings.radialMenu(language).pageTitle
         case .reminders: return "提醒事项"
+        case .stocks: return StockStrings.title(language)
         case .accounting: return "记账"
         case .notes: return "笔记"
         case .systemData: return "系统数据"
@@ -1293,6 +1294,7 @@ extension AppFeature {
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .reminders: return "查看、筛选和快速添加 macOS 提醒事项。"
+        case .stocks: return StockStrings.description(L10n.shared.language)
         case .accounting: return "记录日常收支，管理分类，查看月度流水与统计。"
         case .notes: return "本地 Markdown 与 Excalidraw 笔记，支持附件、双向链接和属性。"
         case .systemData: return "查看 macOS 系统数据占用，按安全等级选择并清理缓存、日志等内容。"

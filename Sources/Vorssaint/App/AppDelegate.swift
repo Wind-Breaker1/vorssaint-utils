@@ -1789,6 +1789,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let settings = NSMenuItem(title: strings.menuSettings, action: #selector(menuOpenSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        appMenu.addItem(StockWindowController.menuItem())
         appMenu.addItem(.separator())
 
         appMenu.addItem(NSMenuItem(title: strings.menuHide,

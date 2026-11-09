@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, reminders, accounting, notes
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, reminders, accounting, notes, stocks
     var id: String { rawValue }
 
     var symbol: String {
@@ -33,6 +33,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "eye"
         case .notes: return AppFeature.notes.symbolName
         case .reminders: return "checklist"
+        case .stocks: return "chart.line.uptrend.xyaxis"
         case .accounting: return "yensign.circle"
         }
     }
@@ -58,6 +59,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "o"
         case .notes: return "j"
         case .reminders: return "q"
+        case .stocks: return "x"
         case .accounting: return "e"
         }
     }
@@ -84,6 +86,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .notes: return AppFeature.notes.isAvailable(in: defaults)
         case .reminders: return AppFeature.reminders.isAvailable(in: defaults)
+        case .stocks: return AppFeature.stocks.isAvailable(in: defaults)
         case .accounting: return AppFeature.accounting.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
@@ -2800,7 +2803,7 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch, .reminders, .accounting, .notes:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch, .reminders, .accounting, .notes, .stocks:
                 contentHeight = budget
             }
         }

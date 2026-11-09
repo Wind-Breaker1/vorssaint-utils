@@ -402,7 +402,7 @@ struct NotchSettings: View {
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
-        case .reminders, .accounting, .notes: EmptyView()
+        case .reminders, .accounting, .notes, .stocks: EmptyView()
         case .controls:
             let primary = [NotchControlItem.music, .volume, .brightness, .keyboardLight]
             HStack(spacing: 10) {
@@ -873,6 +873,7 @@ struct NotchSettings: View {
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
         case .controls, .music, .captures, .system: return nil
+        case .stocks: return .stocks
         case .notes: return .notes
         case .reminders: return .reminders
         case .mixer: return .mixer

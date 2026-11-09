@@ -95,7 +95,7 @@ extension SystemDataService {
                   let item = row("pkg-pnpm", .packages, "pnpm 存储（未找到 pnpm）", path, .review, minimum: SystemDataProbeRegistry.mb) {
             result.append(item)
         }
-        for prefix in ["/opt/homebrew", "/usr/local"] where FileManager.default.isExecutableFile(atPath: prefix + "/bin/brew") {
+        for prefix in ["/opt/homebrew", "/usr/local"] where FileManager.default.isExecutableFile(atPath: URL(fileURLWithPath: prefix).appendingPathComponent("bin").appendingPathComponent("brew").path) {
             if let item = row("pkg-homebrew-" + prefix, .packages, "Homebrew 安装内容", URL(fileURLWithPath: prefix), .manual,
                               minimum: 100 * SystemDataProbeRegistry.mb, detail: "全部 formula 和 cask。请使用 brew uninstall 或 brew autoremove 管理。") { result.append(item) }
         }

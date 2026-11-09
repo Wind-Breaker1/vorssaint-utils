@@ -391,6 +391,7 @@ final class FeatureRuntime: ObservableObject {
                 ReminderService.shared.suspend()
             }
         },
+        .stocks: { StockService.syncAvailability() },
         .accounting: {
             AccountingShortcutService.shared.syncWithPreferences()
             if !AppFeature.accounting.isAvailable {

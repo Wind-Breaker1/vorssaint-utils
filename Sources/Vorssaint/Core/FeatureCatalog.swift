@@ -28,7 +28,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, quitApps, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, wallpaper, killProcess, portManager, notes, accounting, reminders, systemData
+         commandBar, screenRecorder, wallpaper, killProcess, portManager, notes, accounting, reminders, systemData, stocks
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
@@ -117,7 +117,7 @@ extension AppFeature {
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
-        case .notes, .accounting, .reminders, .systemData: return .personalTools
+        case .notes, .accounting, .reminders, .systemData, .stocks: return .personalTools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
              .notchMascot:
@@ -201,6 +201,7 @@ extension AppFeature {
         case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
+        case .stocks: return "chart.line.uptrend.xyaxis"
         case .accounting: return "yensign.circle"
         case .reminders: return "checklist"
         case .systemData: return "internaldrive"
@@ -239,7 +240,7 @@ extension AppFeature {
     /// the permissions portal.
     var enabledKeys: [String] {
         switch self {
-        case .notes, .accounting, .reminders, .systemData: return []
+        case .notes, .accounting, .reminders, .systemData, .stocks: return []
         case .switcher: return [DefaultsKey.switcherEnabled]
         case .dockPreview: return [DefaultsKey.dockPreviewEnabled]
         case .dockClick: return [DefaultsKey.dockClickMinimize,
@@ -393,7 +394,7 @@ extension AppFeature {
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .notes, .accounting, .reminders, .systemData, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
+             .scratchpad, .notes, .accounting, .reminders, .systemData, .stocks, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
              .portManager,
              // Each app gets the ordinary quit request it would from its own menu.
              .quitApps:
@@ -495,7 +496,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .stocks:
             return false
         }
     }

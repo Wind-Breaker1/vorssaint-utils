@@ -157,6 +157,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
 - **Quit apps.** See every open app in one list and quit them one by one, all at once or all but the one in front.
 - **Radial menu.** Open a customizable wheel of apps, files, shortcuts and tools around the pointer, with profiles and submenus.
+- **Stock Review.** Record A-share and ETF trades, inspect positions and daily market snapshots, and keep review notes with plans. The Chinese workspace uses free market data and annual JSON files in a folder you choose, including iCloud Drive. [Setup and import guide](docs/STOCK-REVIEW-V1.md). Track complete trading rounds, versioned plans and personal rules, execution quality, mistakes and no-trade decisions; profitability does not determine operation quality. [V2 workflow and verification](docs/STOCK-REVIEW-V2.md).
 - **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
 
@@ -214,7 +215,7 @@ To remove Vorssaint completely, including its settings and permissions:
 
 ## Private by default
 
-Vorssaint is local-first, with no account, analytics or tracking. The network is touched only by things you can see: update checks, the speed test, Homebrew actions, optional online lyric lookup, temporary screenshot or recording links and feedback you explicitly send. The full story is in the [privacy notes](docs/PRIVACY.md).
+Vorssaint is local-first, with no account, analytics or tracking. The network is touched only by things you can see: update checks, the speed test, Homebrew actions, optional online lyric lookup, stock-market data when Stock Review is enabled, temporary screenshot or recording links and feedback you explicitly send. The full story is in the [privacy notes](docs/PRIVACY.md).
 
 Permissions get the same treatment. Every one is optional, the app explains each in plain words, shows which features actually use it, and even tells you when a permission you granted is no longer needed by anything, with a shortcut to revoke it.
 

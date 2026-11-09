@@ -90,6 +90,7 @@ extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
         case .notes, .accounting, .reminders, .systemData: return .idle
+        case .stocks: return .periodic
         case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .windowMaximizer, .middleClick,
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:

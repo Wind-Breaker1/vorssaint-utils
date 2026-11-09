@@ -59,6 +59,7 @@ enum ReleaseChangeAliases {
 
     static func aliases(for feature: AppFeature) -> [Alias] {
         switch feature {
+        case .stocks: return ["股票复盘", "stocks", "stock review"]
         case .accounting: return ["记账", "accounting", "ledger"]
         case .reminders: return ["提醒事项", "待办", "reminders"]
         case .notes: return ["notes", "markdown", "excalidraw", "笔记"]

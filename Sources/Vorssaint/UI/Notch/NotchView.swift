@@ -584,6 +584,7 @@ struct NotchView: View {
                 Button("打开笔记") { service.select(.notes) }
             case .reminders: NotchRemindersView()
                 .environment(\.colorScheme, .dark)
+            case .stocks: Button("打开股票复盘") { service.select(.stocks) }
             case .accounting: AccountingQuickSection()
                 .environment(\.colorScheme, .dark)
             case .controls: NotchControlsView(service: service, size: pageSize)
@@ -845,6 +846,7 @@ extension NotchModule: PanelOrderItem {
         case .watch: return FeatureStrings.notchWatch(language).title
         case .notes: return "笔记"
         case .reminders: return "待办"
+        case .stocks: return StockStrings.title(language)
         case .accounting: return "记账"
         }
     }

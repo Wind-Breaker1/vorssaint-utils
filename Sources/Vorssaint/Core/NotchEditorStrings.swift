@@ -78,6 +78,7 @@ struct NotchEditorStrings {
     /// One line on what a section of the island shows.
     func summary(_ module: NotchModule) -> String {
         switch module {
+        case .stocks: return "打开股票复盘工作台"
         case .controls: return controlsSummary
         case .mixer: return mixerSummary
         case .music: return musicSummary

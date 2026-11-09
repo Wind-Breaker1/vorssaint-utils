@@ -1911,6 +1911,10 @@ final class NotchService: ObservableObject {
 
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
+        if module == .stocks {
+            perform { StockWindowController.open() }
+            return
+        }
         if module == .notes {
             perform { (NSApp.delegate as? AppDelegate)?.openNotesWindow() }
             return
