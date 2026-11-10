@@ -31,29 +31,68 @@ struct StockReviewsView: View {
                 }.frame(maxHeight: .infinity)
             }.padding(12).frame(width: 230).frame(maxHeight: .infinity, alignment: .top)
             Divider()
-            VStack(alignment: .leading, spacing: 12) {
-                StockInlineReview(service: service, date: day, dirty: $dirty).id(day)
-                    .contextMenu {
-                        Button("编辑计划与关联成交") { original = review; editing = review ?? StockReview(date: day) }.disabled(dirty || service.busy)
-                        Button("记录无成交决策") { evaluationOriginal = nil; evaluating = StockAssessment(date: day, kind: "等待") }.disabled(dirty || service.busy)
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("每日复盘").font(.headline)
+                            Text(selected, format: .dateTime.year().month().day().weekday(.wide))
+                                .font(.callout.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Label(dirty ? "编辑中" : review == nil ? "未记录" : "已保存",
+                              systemImage: dirty ? "pencil.circle" : review == nil ? "circle.dashed" : "checkmark.circle.fill")
+                            .font(.caption).foregroundStyle(dirty ? Color.orange : Color.secondary)
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(.quaternary.opacity(0.45), in: Capsule())
+                        Spacer(minLength: 4)
+                        Button { moveDay(-1) } label: { Image(systemName: "chevron.left") }
+                            .buttonStyle(.borderless).help("前一天").disabled(dirty)
+                        Button("今天") { selected = StockDay.calendar.startOfDay(for: Date()) }
+                            .buttonStyle(.borderless).disabled(dirty)
+                        Button { moveDay(1) } label: { Image(systemName: "chevron.right") }
+                            .buttonStyle(.borderless).help("后一天")
+                            .disabled(dirty || StockDay.calendar.isDateInToday(selected))
                     }
+                    HStack(spacing: 8) {
+                        Spacer()
+                        Button {
+                            original = review
+                            editing = review ?? StockReview(date: day)
+                        } label: {
+                            Label("计划与成交", systemImage: "list.bullet.clipboard")
+                        }.buttonStyle(.bordered).disabled(dirty || service.busy)
+                        Button {
+                            evaluationOriginal = nil
+                            evaluating = StockAssessment(date: day, kind: "等待")
+                        } label: {
+                            Label("无成交决策", systemImage: "text.badge.plus")
+                        }.buttonStyle(.borderedProminent).disabled(dirty || service.busy)
+                    }
+                }.padding(.horizontal, 16).padding(.vertical, 10)
+                Divider()
+                StockInlineReview(service: service, date: day, dirty: $dirty)
+                    .id(day).padding(14)
                 Divider()
                 HStack {
                     Text("连板天梯").font(.headline)
                     Spacer()
                     if let snapshot {
-                        Text("连板 \(snapshot.limits.filter { $0.boards > 1 }.count) 只 · 首板 \(snapshot.limits.filter { $0.boards == 1 }.count) 只").font(.caption).foregroundStyle(.secondary)
+                        Text("连板 \(snapshot.limits.filter { $0.boards > 1 }.count) 只 · 首板 \(snapshot.limits.filter { $0.boards == 1 }.count) 只")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                }
+                }.padding(.horizontal, 16).padding(.top, 12)
                 ScrollView {
                     if let snapshot { StockLimitLadder(limits: snapshot.limits, showsHeader: false).frame(maxWidth: .infinity, alignment: .topLeading) }
                     else { Text("当天连板数据尚未保存").font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8) }
-                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(14)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }.onAppear { if let last = service.data.reviews.map(\.date).max(), let date = StockDay.date(last) { selected = date } }
         .sheet(item: $editing) { draft in StockReviewEditor(service: service, initial: draft, original: original) }
         .sheet(item: $evaluating) { a in StockAssessmentEditor(service: service, initial: a, original: evaluationOriginal) }
 
+    }
+    private func moveDay(_ offset: Int) {
+        if let next = StockDay.calendar.date(byAdding: .day, value: offset, to: selected) { selected = next }
     }
 }
 
@@ -204,9 +243,11 @@ struct StockInlineReview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if draft != nil {
-                HStack(alignment: .top, spacing: 12) {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], alignment: .leading, spacing: 10) {
                     field("市场观察", \.summary, prompt: "市场环境、板块变化、关键观察")
-                    field("经验与改动", \.lesson, prompt: "值得重复的操作、需要改变的行为")
+                    field("我的执行", \.execution, prompt: "计划执行情况、偏差与原因")
+                    field("经验与改进", \.lesson, prompt: "值得重复的操作、需要改变的行为")
+                    field("情绪判断", \.emotion, prompt: "记录当日情绪与决策状态")
                 }
             }
             if let error { Text(error).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
@@ -251,9 +292,12 @@ struct StockInlineReview: View {
                     if let draft { service.reviewDrafts[date] = (draft, original) }
                 }))
                     .font(.body).scrollContentBackground(.hidden).padding(4).disabled(service.busy)
-            }.frame(height: 170).background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(.quaternary))
-        }.frame(maxWidth: .infinity)
+        }.frame(height: 112)
+            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(.quaternary))
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 9))
     }
     private func load() {
         if let saved = service.reviewDrafts[date] {
