@@ -30,6 +30,7 @@ struct StockReviewsView: View {
                 else { Text("当天行情尚未保存，点击刷新获取。").font(.caption).foregroundStyle(.secondary) }
                 }.frame(maxHeight: .infinity)
             }.padding(12).frame(width: 230).frame(maxHeight: .infinity, alignment: .top)
+                .background(.regularMaterial)
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -86,6 +87,7 @@ struct StockReviewsView: View {
                     else { Text("当天连板数据尚未保存").font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8) }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(14)
             }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color(nsColor: .windowBackgroundColor))
         }.onAppear { if let last = service.data.reviews.map(\.date).max(), let date = StockDay.date(last) { selected = date } }
         .sheet(item: $editing) { draft in StockReviewEditor(service: service, initial: draft, original: original) }
         .sheet(item: $evaluating) { a in StockAssessmentEditor(service: service, initial: a, original: evaluationOriginal) }
@@ -127,6 +129,11 @@ private struct StockReviewCalendar: View {
                                 .foregroundStyle(selected ? Color.white : calendar.isDateInToday(date) ? Color.accentColor : Color.primary)
                                 .frame(maxWidth: .infinity).frame(height: 28)
                                 .background(selected ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+                                .overlay {
+                                    if calendar.isDateInToday(date) && !selected {
+                                        RoundedRectangle(cornerRadius: 5).stroke(Color.accentColor.opacity(0.65), lineWidth: 1)
+                                    }
+                                }
                                 .overlay(alignment: .bottom) {
                                     if savedDays.contains(StockDay.string(date)) { Circle().fill(selected ? Color.white : Color.accentColor).frame(width: 3, height: 3).padding(.bottom, 2) }
                                 }
@@ -164,7 +171,9 @@ struct StockPlanSummary: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
                 }
             }
-        }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+        }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.08)))
     }
 }
 struct StockReviewEditor: View {
@@ -203,7 +212,9 @@ struct StockReviewEditor: View {
                                 TextField("修改原计划的原因（修改时必填）", text: Binding(get: { plan.changeReason ?? "" }, set: { plan.changeReason = $0 }), axis: .vertical).lineLimit(1...3)
                                 TextField("事后验证：实际执行、结果与偏差", text: $plan.outcome, axis: .vertical).lineLimit(2...5)
                                 HStack { Text("建立：\(plan.createdAt) · v\(plan.snapshot.version)").font(.caption2).foregroundStyle(.secondary); Spacer(); Button("取消计划") { plan.status = "已取消" } }
-                            }.textFieldStyle(.roundedBorder).padding(16).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+                            }.textFieldStyle(.roundedBorder).padding(16)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.08)))
                         }
                         Button("添加计划", systemImage: "plus") { draft.plans.append(StockPlan()) }
                     }.padding(20)
@@ -297,7 +308,8 @@ struct StockInlineReview: View {
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(.quaternary))
         }.frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
-            .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 9))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08)))
     }
     private func load() {
         if let saved = service.reviewDrafts[date] {
