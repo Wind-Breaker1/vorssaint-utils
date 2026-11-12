@@ -6,6 +6,10 @@ enum NotesWindowLayout {
     static let minimumSize = NSSize(width: 1440, height: 900)
 }
 
+private enum NotesWindowOpenRequest {
+    static var generation = 0
+}
+
 /// Hosting controllers can publish new minimums after layout or content changes.
 /// Keep the product's minimum at the window boundary for every such update.
 private final class NotesWindow: NSWindow {
@@ -44,7 +48,21 @@ extension AppDelegate {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        guard let note = NotesStore.shared.document(requested.id) ?? (CommandLine.arguments.contains("--probe-markdown-editor") ? requested : nil) else { return }
+        NotesWindowOpenRequest.generation += 1
+        let generation = NotesWindowOpenRequest.generation
+        NotesStore.shared.loadDocument(requested.id) { [weak self] result in
+            guard generation == NotesWindowOpenRequest.generation, AppFeature.notes.isAvailable else { return }
+            let note: NoteDocument
+            switch result {
+            case .success(let loaded): note = loaded
+            case .failure where CommandLine.arguments.contains("--probe-markdown-editor"): note = requested
+            case .failure: return
+            }
+            self?.presentWorkspaceNote(note)
+        }
+    }
+
+    private func presentWorkspaceNote(_ note: NoteDocument) {
         let host = NSHostingController(rootView: NotesEditorView(note: note))
         host.sizingOptions = []
         let window = NotesWindow(contentViewController: host)

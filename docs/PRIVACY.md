@@ -25,9 +25,9 @@ When a feature needs a macOS permission such as Accessibility, Screen Recording 
 
 ## Stock Review
 
-Stock Review is optional and initially uninstalled. Trades, review notes, plans, watchlists and downloaded market data are stored in the data folder you choose. Trades, reviews, market snapshots and chart history use annual JSON files. Operation assessments, personal emotions, mistake tags, no-trade decisions and plan versions are saved within annual reviews; shared rules and tags are saved in rules.json. These personal journal contents are not sent to market-data providers or AI services. The app keeps the most recent 30 JSON backups in that folder. Choosing an iCloud Drive folder lets macOS synchronize its contents under your iCloud settings; Vorssaint does not operate a separate sync service. The directory path and access bookmark stay on this Mac and are excluded from settings exports. CSV imports are parsed locally, and CSV exports are saved only where you choose.
+Stock Review is optional and initially uninstalled. Trades, daily review notes and downloaded market snapshots are stored in the data folder you choose as annual JSON files. Trading discipline text is stored in `rules.json`. These personal records are not sent to market-data providers or AI services. The app keeps the most recent 30 JSON backups in that folder. Choosing an iCloud Drive folder lets macOS synchronize its contents under your iCloud settings; Vorssaint does not operate a separate sync service. The directory path and access bookmark stay on this Mac and are excluded from settings exports. CSV imports are parsed locally, and CSV exports are saved only where you choose.
 
-Name lookup sends the entered security name to Eastmoney’s public suggestion service. The workspace sends securities codes and requested dates to the public market-data providers listed below. It does not send trade prices, quantities, fees, notes, plans or broker execution IDs, and it has no AI analysis feature.
+Name lookup sends the entered security name to Eastmoney’s public suggestion service. The workspace sends securities codes and requested dates to the public market-data providers listed below. It does not send trade prices, quantities, fees, notes or broker execution IDs, and it has no AI analysis feature.
 
 ## Optional notch features
 

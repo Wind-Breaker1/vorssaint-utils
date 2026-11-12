@@ -5,59 +5,53 @@ import SwiftUI
 struct StockTradeList: View {
     @ObservedObject var service: StockService
     var edit: (StockTrade) -> Void
-    var copy: ((StockTrade) -> Void)? = nil
-    var record: (() -> Void)? = nil
     @State private var query = ""
     @State private var year = "全部"
     @State private var action = "全部"
     @State private var deleting: StockTrade?
-    @State private var evaluating: StockAssessment?
-    @State private var evaluationOriginal: StockAssessment?
     private var years: [String] { Array(Set(service.data.trades.map { String($0.date.prefix(4)) })).sorted(by: >) }
     private var rows: [StockTrade] {
         service.data.trades.filter { t in t.deletedAt == nil && (year == "全部" || t.date.hasPrefix(year)) && (action == "全部" || t.action.title == action) && (query.isEmpty || "\(t.instrument.symbol) \(t.instrument.name) \(t.note) \(t.strategy)".localizedCaseInsensitiveContains(query)) }.sorted { $0.sortKey > $1.sortKey }
     }
     var body: some View {
+        GeometryReader { geometry in
+        let columnScale = min(1, max(0.5, (geometry.size.width - 150) / 544))
         VStack(spacing: 12) {
-            HStack {
-                TextField("搜索代码、名称、策略、备注", text: $query).textFieldStyle(.roundedBorder).frame(maxWidth: 300)
-                Picker("年份", selection: $year) { Text("全部").tag("全部"); ForEach(years, id: \.self) { Text($0).tag($0) } }.frame(width: 130)
-                Picker("方向", selection: $action) { Text("全部").tag("全部"); ForEach(StockAction.allCases) { Text($0.title).tag($0.title) } }.frame(width: 150)
-                Spacer(); Menu("导入 / 导出") {
+            HStack(spacing: 8) {
+                TextField("搜索代码、名称、策略、备注", text: $query).textFieldStyle(.roundedBorder).frame(minWidth: 60, maxWidth: .infinity)
+                Picker("年份", selection: $year) { Text("全部").tag("全部"); ForEach(years, id: \.self) { Text($0).tag($0) } }.labelsHidden().frame(width: 80).help("筛选年份")
+                Picker("方向", selection: $action) { Text("全部").tag("全部"); ForEach(StockAction.allCases) { Text($0.title).tag($0.title) } }.labelsHidden().frame(width: 90).help("筛选方向")
+                Menu("导入 / 导出") {
                     Button("导入成交 CSV / TSV…") { service.chooseImport() }
                     Button("导出全部成交…") { service.exportCSV() }
                     Button("下载 CSV 表头模板…") { service.exportCSV(template: true) }
-                }
-                if let record { Button("记一笔", systemImage: "plus", action: record).buttonStyle(.borderedProminent) }
+                }.fixedSize()
             }.padding(.horizontal, 20).padding(.top, 16)
             HStack { Text("\(rows.count) 笔成交").font(.caption).foregroundStyle(.secondary); Spacer(); Text("买卖金额不含费用 · 盈亏按历史完整流水计算").font(.caption2).foregroundStyle(.secondary) }.padding(.horizontal, 20)
-            if rows.isEmpty { ContentUnavailableView("还没有成交记录", systemImage: "arrow.left.arrow.right", description: Text("点击右上角“记一笔”，或导入券商导出的成交 CSV。"))
+            if rows.isEmpty { ContentUnavailableView("还没有成交记录", systemImage: "arrow.left.arrow.right", description: Text("在右侧录入成交，或导入券商导出的成交 CSV。"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity) }
             else {
                 HStack(spacing: 8) {
-                    Text("成交时间").frame(width: 88, alignment: .leading)
-                    Text("证券").frame(width: 108, alignment: .leading)
-                    Text("方向").frame(width: 46, alignment: .leading)
-                    Text("价格 / 数量").frame(width: 80, alignment: .trailing)
-                    Text("费用").frame(width: 58, alignment: .trailing)
-                    Text("已实现盈亏").frame(width: 88, alignment: .trailing)
+                    Text("成交时间").frame(width: 88 * columnScale, alignment: .leading)
+                    Text("证券").frame(width: 108 * columnScale, alignment: .leading)
+                    Text("方向").frame(width: 46 * columnScale, alignment: .leading)
+                    Text("价格 / 数量").frame(width: 80 * columnScale, alignment: .trailing)
+                    Text("费用").frame(width: 58 * columnScale, alignment: .trailing)
+                    Text("已实现盈亏").frame(width: 88 * columnScale, alignment: .trailing)
                     Text("策略 / 备注").frame(maxWidth: .infinity, alignment: .leading)
                     Color.clear.frame(width: 28)
                 }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14)
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(rows) { t in
-                            StockTradeRow(service: service, trade: t, edit: edit, copy: copy, delete: { deleting = t }) {
-                                evaluationOriginal = service.data.assessment(for: t.id)
-                                evaluating = evaluationOriginal ?? service.data.draftAssessment(for: t)
-                            }
+                            StockTradeRow(service: service, trade: t, columnScale: columnScale, edit: edit, delete: { deleting = t })
                             Divider().opacity(0.45)
                         }
                     }.padding(.horizontal, 10)
                 }
             }
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).disabled(service.busy)
-        .sheet(item: $evaluating) { a in StockAssessmentEditor(service: service, initial: a, original: evaluationOriginal) }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }.disabled(service.busy)
         .alert("删除这笔成交？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("取消", role: .cancel) { deleting = nil }
             Button("删除", role: .destructive) { if let t = deleting { service.deleteTrade(t) }; deleting = nil }
@@ -68,20 +62,19 @@ struct StockTradeList: View {
 private struct StockTradeRow: View {
     @ObservedObject var service: StockService
     let trade: StockTrade
+    let columnScale: CGFloat
     let edit: (StockTrade) -> Void
-    let copy: ((StockTrade) -> Void)?
     let delete: () -> Void
-    let evaluate: () -> Void
     private var profit: Decimal? { service.ledger.saleProfit[trade.id] }
     private var codeLabel: String { trade.instrument.exchange + " " + trade.instrument.symbol }
     var body: some View {
         HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) { Text(trade.date); Text(trade.time).font(.caption2).foregroundStyle(.secondary) }.frame(width: 88, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) { Text(trade.instrument.name).lineLimit(1); Text(codeLabel).font(.caption2).foregroundStyle(.secondary) }.frame(width: 108, alignment: .leading)
-            actionLabel.frame(width: 46, alignment: .leading)
-            VStack(alignment: .trailing, spacing: 2) { Text(trade.price); Text(trade.quantity).foregroundStyle(.secondary) }.frame(width: 80, alignment: .trailing)
-            Text(StockDecimal.display(trade.fee)).frame(width: 58, alignment: .trailing)
-            profitLabel.frame(width: 88, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 2) { Text(trade.date); Text(trade.time).font(.caption2).foregroundStyle(.secondary) }.frame(width: 88 * columnScale, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) { Text(trade.instrument.name).lineLimit(1); Text(codeLabel).font(.caption2).foregroundStyle(.secondary) }.frame(width: 108 * columnScale, alignment: .leading)
+            actionLabel.frame(width: 46 * columnScale, alignment: .leading)
+            VStack(alignment: .trailing, spacing: 2) { Text(trade.price); Text(trade.quantity).foregroundStyle(.secondary) }.frame(width: 80 * columnScale, alignment: .trailing)
+            Text(StockDecimal.display(trade.fee)).frame(width: 58 * columnScale, alignment: .trailing)
+            profitLabel.frame(width: 88 * columnScale, alignment: .trailing)
             VStack(alignment: .leading, spacing: 2) {
                 if !trade.strategy.isEmpty { Text(trade.strategy).lineLimit(1) }
                 Text(trade.note.isEmpty ? "—" : trade.note).font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -98,8 +91,6 @@ private struct StockTradeRow: View {
     private var actions: some View {
         Menu {
             Button("编辑成交") { edit(trade) }
-            if trade.action == .buy || trade.action == .sell { Button("评价 / 查看操作", action: evaluate) }
-            if let copy { Button("复制为新成交") { copy(trade.copyForNewTrade()) } }
             Button("删除成交", role: .destructive, action: delete)
         } label: { Image(systemName: "ellipsis.circle") }
             .menuStyle(.borderlessButton)
@@ -118,29 +109,43 @@ struct StockTradeEditor: View {
     @State private var matches: [StockInstrument] = []
     @State private var searchStatus = ""
     @State private var resolvedName = ""
+    private let onClose: (() -> Void)?
+    private func close() { if let onClose { onClose() } else { dismiss() } }
     private let initial: StockTrade
-    init(service: StockService, initial: StockTrade, original: StockTrade?) { self.service = service; self.original = original; self.initial = initial; _draft = State(initialValue: initial) }
+    init(service: StockService, initial: StockTrade, original: StockTrade?, onClose: (() -> Void)? = nil) { self.onClose = onClose; self.service = service; self.original = original; self.initial = initial; _draft = State(initialValue: initial) }
     private var day: Binding<Date> { Binding(get: { StockDay.date(draft.date) ?? Date() }, set: { draft.date = StockDay.string($0) }) }
     var body: some View {
         VStack(spacing: 0) {
-            HStack { Text(original == nil ? "记录成交" : "编辑成交").font(.title2.bold()); Spacer(); Text("实际成交 · 人民币").foregroundStyle(.secondary) }.padding(16)
+            if onClose == nil {
+                HStack { Text(original == nil ? "记录成交" : "编辑成交").font(.headline); Spacer(); Text("人民币").font(.caption).foregroundStyle(.secondary) }.padding(16)
+            }
+            GeometryReader { geometry in
             ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack { TextField("代码（六位）", text: $draft.instrument.symbol).frame(width: 130); TextField("中文名称", text: Binding(get: { draft.instrument.name }, set: { value in draft.instrument.name = value; draft.instrument.symbol = ""; resolvedName = ""; matches = [] }))
-                        Picker("品种", selection: $draft.instrument.kind) { Text("股票").tag("stock"); Text("场内 ETF").tag("etf") }.frame(width: 160)
+                    VStack(alignment: .leading, spacing: 10) { TextField("证券中文名称", text: Binding(get: { draft.instrument.name }, set: { value in draft.instrument.name = value; draft.instrument.symbol = ""; resolvedName = ""; matches = []; searchStatus = "" }))
                     }
                     if !searchStatus.isEmpty { Text(searchStatus).font(.caption).foregroundStyle(.secondary) }
                     ForEach(matches) { item in
                         Button { select(item) } label: {
-                            HStack { Text(item.name); Spacer(); Text(item.symbol + " · " + item.exchange).foregroundStyle(.secondary) }
+                            VStack(alignment: .leading, spacing: 2) { Text(item.name).lineLimit(1); Text(item.symbol + " · " + item.exchange).font(.caption).foregroundStyle(.secondary) }
                         }.buttonStyle(.plain)
                     }
                 }
                 VStack(alignment: .leading, spacing: 10) {
-                    if let original, service.data.assessment(for: original.id) != nil { Text("修改日期、方向、价格、数量或费用后，原操作评价会标记为待重新核对，并暂时退出统计。").font(.caption).foregroundStyle(.orange) }
-                    HStack(spacing: 16) {
-                    Picker("业务", selection: $draft.action) { ForEach(StockAction.allCases) { Text($0.title).tag($0) } }.pickerStyle(.segmented)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
+                            HStack(spacing: 0) {
+                                tradeTab("股票", selected: draft.instrument.kind == "stock") { draft.instrument.kind = "stock" }
+                                tradeTab("ETF", selected: draft.instrument.kind == "etf") { draft.instrument.kind = "etf" }
+                            }
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                            HStack(spacing: 0) {
+                                tradeTab("买入", selected: draft.action == .buy) { draft.action = .buy }
+                                tradeTab("卖出", selected: draft.action == .sell) { draft.action = .sell }
+                            }
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                        }
                         HStack(spacing: 6) {
                             Text("日期").foregroundStyle(.secondary)
                             Button { showingDatePicker.toggle() } label: {
@@ -155,7 +160,7 @@ struct StockTradeEditor: View {
                                 }
                         }
                     }
-                    HStack {
+                    VStack(alignment: .leading, spacing: 10) {
                         TextField(draft.action == .dividend ? "分红税前总额" : "成交价格", text: $draft.price)
                         TextField(draft.action == .shares ? "增减份额（可负数）" : "成交数量（股 / 份）", text: $draft.quantity)
                     }
@@ -164,21 +169,28 @@ struct StockTradeEditor: View {
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     TextField("策略 / 交易模式", text: $draft.strategy)
-                    TextField("买卖理由、执行情况", text: $draft.note, axis: .vertical).lineLimit(2...4)
-                    Text("可以先保存成交，再从成交列表补充规则评价、个人情绪和错误类型。").font(.caption).foregroundStyle(.secondary)
+                    TextField("买卖理由、执行情况", text: $draft.note, axis: .vertical).lineLimit(5...8)
                 }
-            }.textFieldStyle(.roundedBorder).padding(.horizontal, 16).padding(.vertical, 4)
+            }.textFieldStyle(.roundedBorder)
+                .frame(width: max(0, geometry.size.width - (onClose == nil ? 32 : 20)), alignment: .leading)
+                .padding(.horizontal, onClose == nil ? 16 : 10).padding(.vertical, 4)
+            }
             }
             if let error { Text(error).foregroundStyle(.orange).font(.callout).padding(.horizontal, 22).textSelection(.enabled) }
-            HStack {
-                Spacer()
-                Button("取消") { if draft != initial { cancel = true } else { dismiss() } }.keyboardShortcut(.cancelAction)
-                Button(service.busy ? "正在保存…" : "保存成交") {
-                    do { try draft.validate(); service.saveTrade(draft, original: original) { ok in if ok { dismiss() } else { error = service.message } } }
-                    catch { self.error = error.localizedDescription }
-                }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-            }.padding(16).disabled(service.busy)
-        }.frame(width: 640, height: 410).interactiveDismissDisabled()
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    Spacer()
+                    cancelButton
+                    saveButton
+                }
+                VStack(spacing: 8) {
+                    saveButton.frame(maxWidth: .infinity)
+                    cancelButton.frame(maxWidth: .infinity)
+                }
+            }.padding(onClose == nil ? 16 : 10).disabled(service.busy)
+        }.frame(width: onClose == nil ? 640 : nil, height: onClose == nil ? 410 : nil)
+        .frame(maxWidth: onClose == nil ? nil : .infinity, maxHeight: onClose == nil ? nil : .infinity, alignment: .topLeading)
+        .interactiveDismissDisabled()
         .onChange(of: draft.instrument.symbol) { _, code in
             if code.count == 6 { let item = StockInstrument.inferred(code); draft.instrument.exchange = item.exchange; draft.instrument.kind = item.kind }
         }
@@ -195,13 +207,37 @@ struct StockTradeEditor: View {
                 let exact = results.filter { $0.name == query }
                 if exact.count == 1 { select(exact[0]) }
                 else if results.count == 1 { select(results[0]) }
-                else { matches = Array(results.prefix(8)); searchStatus = results.isEmpty ? "未找到匹配，可手动填写代码" : "请选择证券以填写代码" }
+                else { matches = Array(results.prefix(8)); searchStatus = results.isEmpty ? "未找到匹配，请检查证券名称" : "请选择对应证券" }
             } catch {
                 guard !Task.isCancelled else { return }
-                searchStatus = "搜索暂不可用，可手动填写代码"
+                searchStatus = "搜索暂不可用，请稍后重新输入名称"
             }
         }
-        .alert("放弃未保存的成交？", isPresented: $cancel) { Button("继续编辑", role: .cancel) {}; Button("放弃", role: .destructive) { dismiss() } }
+        .alert("放弃未保存的成交？", isPresented: $cancel) { Button("继续编辑", role: .cancel) {}; Button("放弃", role: .destructive) { close() } }
+    }
+    private func tradeTab(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.callout)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background(selected ? Color.accentColor : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+    private var cancelButton: some View {
+        Button("取消") { if draft != initial { cancel = true } else { close() } }
+            .keyboardShortcut(.cancelAction)
+    }
+    private var saveButton: some View {
+        Button(service.busy ? "正在保存…" : "保存成交") {
+            do { try draft.validate(); service.saveTrade(draft, original: original) { ok in if ok { close() } else { error = service.message } } }
+            catch { self.error = error.localizedDescription }
+        }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+            .disabled(draft.instrument.symbol.isEmpty)
     }
     private func select(_ item: StockInstrument) {
         resolvedName = item.name

@@ -6,7 +6,7 @@ import Foundation
 /// Pure presentation filtering; EventKit access and preferences stay with their owners.
 enum ReminderFilter {
     static func apply(_ reminders: [ReminderItem], status: ReminderStatusFilter,
-                      showCompleted: Bool = true, date: ReminderDateFilter, listID: String,
+                      date: ReminderDateFilter, listID: String,
                       order: ReminderSortOrder, query: String = "", now: Date = Date(),
                       calendar: Calendar = .current) -> [ReminderItem] {
         let today = calendar.startOfDay(for: now)
@@ -15,8 +15,7 @@ enum ReminderFilter {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return reminders.filter { item in
             if !query.isEmpty && !item.title.localizedCaseInsensitiveContains(query) { return false }
-            let effectiveStatus = showCompleted ? status : .pending
-            switch effectiveStatus { case .pending where item.completed, .completed where !item.completed: return false; default: break }
+            switch status { case .pending where item.completed, .completed where !item.completed: return false; default: break }
             if !listID.isEmpty && item.listID != listID { return false }
             switch date {
             case .all: return true

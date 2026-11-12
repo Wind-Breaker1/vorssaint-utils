@@ -13,11 +13,10 @@ enum ReminderFilterTests {
             ReminderItem(id: id, title: id, completed: completed, priority: priority, dueDate: due, listTitle: list, listID: list)
         }
         let items = [item("past", due: day(-1)), item("today", due: today), item("tomorrow", due: day(1)), item("six", due: day(6)), item("seven", due: day(7)), item("none", list: "b"), item("done", completed: true, due: day(-1))]
-        func filter(status: ReminderStatusFilter = .all, show: Bool = true, date: ReminderDateFilter = .all, list: String = "", query: String = "") -> [String] {
-            ReminderFilter.apply(items, status: status, showCompleted: show, date: date, listID: list, order: .title, query: query, now: today, calendar: calendar).map(\.id)
+        func filter(status: ReminderStatusFilter = .all, date: ReminderDateFilter = .all, list: String = "", query: String = "") -> [String] {
+            ReminderFilter.apply(items, status: status, date: date, listID: list, order: .title, query: query, now: today, calendar: calendar).map(\.id)
         }
-        suite.expect(filter(show: false).count == 6, "completed visibility switch excludes completed items")
-        suite.expect(filter(status: .completed, show: false).count == 6, "stale completed filter falls back to pending when visibility is disabled")
+        suite.expect(filter(status: .pending).count == 6, "pending status excludes completed items")
         suite.expect(filter(status: .completed) == ["done"], "completed status selects completed items")
         suite.expect(filter(date: .today) == ["today"], "today excludes adjacent days")
         suite.expect(filter(date: .tomorrow) == ["tomorrow"], "tomorrow selects next day")
@@ -26,10 +25,10 @@ enum ReminderFilterTests {
         suite.expect(filter(date: .noDate) == ["none"], "no date selects undated items")
         suite.expect(filter(list: "b", query: " NONE ") == ["none"], "list and trimmed case-insensitive search combine")
         let priorities = [item("unspecified", priority: 0), item("low", priority: 9), item("medium", priority: 5), item("high", priority: 1)]
-        let sorted = ReminderFilter.apply(priorities, status: .pending, showCompleted: false, date: .all, listID: "", order: .priority)
+        let sorted = ReminderFilter.apply(priorities, status: .pending, date: .all, listID: "", order: .priority)
         suite.expect(sorted.map(\.id) == ["high", "medium", "low", "unspecified"], "EventKit priorities sort high first and unspecified last")
         let tied = [item("b"), item("a")]
-        let ordered = ReminderFilter.apply(tied, status: .pending, showCompleted: false, date: .all, listID: "", order: .dueDate)
+        let ordered = ReminderFilter.apply(tied, status: .pending, date: .all, listID: "", order: .dueDate)
         suite.expect(ordered.map(\.id) == ["a", "b"], "equal dates have stable title ordering")
     }
 }

@@ -581,7 +581,6 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SecureInputSupport.swift
         Sources/Vorssaint/Core/StockStrings.swift
         Sources/Vorssaint/Services/Stocks/StockModels.swift
-        Sources/Vorssaint/Services/Stocks/StockJournal.swift
         Sources/Vorssaint/Services/Stocks/StockRepository.swift
         Sources/Vorssaint/Services/Stocks/StockCSV.swift
         Sources/Vorssaint/Services/Stocks/StockMarketClient.swift

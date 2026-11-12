@@ -27,6 +27,13 @@ extension Notification.Name { static let notesFlush = Notification.Name("test.no
 func check(_ condition: @autoclosure () throws -> Bool, file: StaticString = #file, line: UInt = #line) rethrows { let value = try condition(); assert(value, file: file, line: line) }
 let store = NotesStore.shared
 let repository = NotesFileRepository(root: NotesStore.root)
+func loadDocument(_ id: UUID) -> NoteDocument? {
+    var result: Result<NoteDocument, Error>?
+    store.loadDocument(id) { result = $0 }
+    let deadline = Date().addingTimeInterval(10)
+    while result == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    return try? result?.get()
+}
 check(!store.storagePath.isEmpty)
 let plainBookmark = try repository.root.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
 var bookmarkStale = false
@@ -35,8 +42,8 @@ check(resolved.resolvingSymlinksInPath().standardizedFileURL.path == repository.
 let first = store.addNote("first")!
 let second = store.addNote("second")!
 check(first.id != second.id)
-check(store.document(first.id)?.title == "first")
-check(store.document(second.id)?.title == "second")
+check(loadDocument(first.id)?.title == "first")
+check(loadDocument(second.id)?.title == "second")
 check(store.notes.count == 2)
 var older = first
 older.body = "older autosave"
@@ -44,7 +51,6 @@ var pendingCallbacks = 0
 store.updateNote(older, wait: false) { success in
     check(success)
     pendingCallbacks += 1
-    check(store.document(first.id)?.body == "final flush")
 }
 var latest = first
 latest.body = "final flush"
@@ -75,7 +81,7 @@ while pendingCallbacks < 2 && Date() < deadline {
     RunLoop.main.run(until: Date().addingTimeInterval(0.02))
 }
 check(pendingCallbacks == 2)
-check(store.document(first.id)?.body == "final flush")
+check(loadDocument(first.id)?.body == "final flush")
 check(!store.notes.contains { $0.id == deleted.id })
 check(store.saveError != nil) // Old success callbacks cannot hide the new failure.
 var recovered = false
@@ -111,7 +117,7 @@ store.refreshFromDisk { complete in check(!complete); checkedPlaceholder = true 
 waitFor { checkedPlaceholder }
 check(store.notes.contains { $0.id == first.id })
 check(!store.indexStatus.isEmpty)
-check(store.document(first.id) == nil)
+check(loadDocument(first.id) == nil)
 try FileManager.default.removeItem(at: placeholder)
 try savedBytes.write(to: file)
 // Relocation returns immediately and keeps the source until explicit cleanup.
@@ -124,7 +130,7 @@ check(FileManager.default.fileExists(atPath: file.path))
 waitFor { !store.movingStorage }
 check(store.saveError == nil)
 check(NotesStore.root.standardizedFileURL == destination.standardizedFileURL)
-check(store.document(first.id)?.body == "external content")
+check(loadDocument(first.id)?.body == "external content")
 check(FileManager.default.fileExists(atPath: repository.root.path))
 check(store.previousStorage.count == 1)
 let history = MigratedStorageSource.load(key: "notes.previousStorage")
@@ -138,7 +144,7 @@ waitFor { !store.removingOldStorage }
 check(store.saveError == nil)
 check(!FileManager.default.fileExists(atPath: repository.root.path))
 check(store.previousStorage.isEmpty)
-check(store.document(first.id)?.body == "external content")
+check(loadDocument(first.id)?.body == "external content")
 check(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("index.sqlite").path))
 UserDefaults.standard.removePersistentDomain(forName: "notes-test-" + URL(fileURLWithPath: CommandLine.arguments[1]).lastPathComponent)
 print("PASS: save ordering, failure recovery, external refresh, cloud placeholders, reopened search and asynchronous relocation")

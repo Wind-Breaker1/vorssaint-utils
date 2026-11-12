@@ -5,97 +5,70 @@ import SwiftUI
 struct StockReviewsView: View {
     @ObservedObject var service: StockService
     @State private var selected = Date()
+    @State private var tab = "行情"
     @State private var dirty = false
-    @State private var editing: StockReview?
-    @State private var original: StockReview?
-    @State private var evaluating: StockAssessment?
-    @State private var evaluationOriginal: StockAssessment?
     private var day: String { StockDay.string(selected) }
-    private var review: StockReview? { service.data.reviews.first { $0.date == day } }
     private var snapshot: StockMarketSnapshot? { service.data.snapshots.first { $0.date == day } }
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                StockReviewCalendar(selection: $selected, savedDays: Set(service.data.reviews.map(\.date))).disabled(dirty)
+                StockReviewCalendar(selection: $selected, savedDays: Set(service.data.reviews.filter(\.hasUserContent).map(\.date))).disabled(dirty)
                 Divider()
-                HStack {
-                    Text("行情快照").font(.headline)
-                    Spacer()
-                    Button { service.collect(date: day) } label: {
-                        if service.collecting { ProgressView().controlSize(.mini) } else { Image(systemName: "arrow.clockwise") }
-                    }.buttonStyle(.plain).help("获取或更新当日行情").disabled(service.collecting || service.busy || dirty)
-                }
-                ScrollView {
-                if let snapshot { StockMarketSidebar(snapshot: snapshot, previous: service.data.snapshots.first { $0.date == snapshot.previousTradingDay }) }
-                else { Text("当天行情尚未保存，点击刷新获取。").font(.caption).foregroundStyle(.secondary) }
-                }.frame(maxHeight: .infinity)
+                StockDisciplineEditor(service: service)
             }.padding(12).frame(width: 230).frame(maxHeight: .infinity, alignment: .top)
                 .background(.regularMaterial)
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("每日复盘").font(.headline)
-                            Text(selected, format: .dateTime.year().month().day().weekday(.wide))
-                                .font(.callout.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()
-                        }
-                        Label(dirty ? "编辑中" : review == nil ? "未记录" : "已保存",
-                              systemImage: dirty ? "pencil.circle" : review == nil ? "circle.dashed" : "checkmark.circle.fill")
-                            .font(.caption).foregroundStyle(dirty ? Color.orange : Color.secondary)
-                            .padding(.horizontal, 8).padding(.vertical, 5)
-                            .background(.quaternary.opacity(0.45), in: Capsule())
-                        Spacer(minLength: 4)
-                        Button { moveDay(-1) } label: { Image(systemName: "chevron.left") }
-                            .buttonStyle(.borderless).help("前一天").disabled(dirty)
-                        Button("今天") { selected = StockDay.calendar.startOfDay(for: Date()) }
-                            .buttonStyle(.borderless).disabled(dirty)
-                        Button { moveDay(1) } label: { Image(systemName: "chevron.right") }
-                            .buttonStyle(.borderless).help("后一天")
-                            .disabled(dirty || StockDay.calendar.isDateInToday(selected))
-                    }
-                    HStack(spacing: 8) {
-                        Spacer()
-                        Button {
-                            original = review
-                            editing = review ?? StockReview(date: day)
-                        } label: {
-                            Label("计划与成交", systemImage: "list.bullet.clipboard")
-                        }.buttonStyle(.bordered).disabled(dirty || service.busy)
-                        Button {
-                            evaluationOriginal = nil
-                            evaluating = StockAssessment(date: day, kind: "等待")
-                        } label: {
-                            Label("无成交决策", systemImage: "text.badge.plus")
-                        }.buttonStyle(.borderedProminent).disabled(dirty || service.busy)
-                    }
-                }.padding(.horizontal, 16).padding(.vertical, 10)
-                Divider()
-                StockInlineReview(service: service, date: day, dirty: $dirty)
-                    .id(day).padding(14)
-                Divider()
-                HStack {
-                    Text("连板天梯").font(.headline)
+                HStack(spacing: 12) {
+                    Picker("视图", selection: $tab) {
+                        Text("行情").tag("行情")
+                        Text("复盘").tag("复盘")
+                    }.pickerStyle(.segmented).labelsHidden().frame(width: 160).fixedSize().offset(x: -8)
                     Spacer()
-                    if let snapshot {
-                        Text("连板 \(snapshot.limits.filter { $0.boards > 1 }.count) 只 · 首板 \(snapshot.limits.filter { $0.boards == 1 }.count) 只")
+                    if tab == "行情" {
+                        Text(service.lastRequestAt.map { "最后请求 " + $0.formatted(.dateTime.hour().minute().second()) } ?? "尚未请求")
                             .font(.caption).foregroundStyle(.secondary)
+                        Button { service.collect(date: day) } label: {
+                            if service.collecting { ProgressView().controlSize(.mini) } else { Label("获取行情", systemImage: "arrow.clockwise") }
+                        }.buttonStyle(.borderless).disabled(service.collecting || service.busy)
                     }
-                }.padding(.horizontal, 16).padding(.top, 12)
-                ScrollView {
-                    if let snapshot { StockLimitLadder(limits: snapshot.limits, showsHeader: false).frame(maxWidth: .infinity, alignment: .topLeading) }
-                    else { Text("当天连板数据尚未保存").font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8) }
-                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(14)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 0).padding(.trailing, 8).padding(.vertical, 6)
+                Divider()
+                if tab == "行情" {
+                    marketContent
+                } else {
+                    StockInlineReview(service: service, date: day, dirty: $dirty).id(day).padding(14)
+                    Spacer(minLength: 0)
+                }
             }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(Color(nsColor: .windowBackgroundColor))
-        }.onAppear { if let last = service.data.reviews.map(\.date).max(), let date = StockDay.date(last) { selected = date } }
-        .sheet(item: $editing) { draft in StockReviewEditor(service: service, initial: draft, original: original) }
-        .sheet(item: $evaluating) { a in StockAssessmentEditor(service: service, initial: a, original: evaluationOriginal) }
+        }.onAppear {
+            if let last = (service.data.reviews.filter(\.hasUserContent).map(\.date) + service.data.snapshots.map(\.date)).max(), let date = StockDay.date(last) { selected = date }
+        }
+    }
 
+    @ViewBuilder private var marketContent: some View {
+        if let snapshot {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    let previous = service.data.snapshots.first { $0.date == snapshot.previousTradingDay }
+                    StockMarketSummary(snapshot: snapshot, previous: previous)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("板块轮动").font(.headline)
+                        StockRotationView(snapshots: service.data.snapshots, day: day)
+                    }
+                    Divider()
+                    StockLimitLadder(limits: snapshot.limits)
+                }.padding(16)
+            }
+        } else {
+            ContentUnavailableView("该日还没有市场快照", systemImage: "chart.bar.xaxis", description: Text("选择交易日后获取或补全行情数据。"))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
-    private func moveDay(_ offset: Int) {
-        if let next = StockDay.calendar.date(byAdding: .day, value: offset, to: selected) { selected = next }
-    }
+
 }
 
 private struct StockReviewCalendar: View {
@@ -153,97 +126,6 @@ private struct StockReviewCalendar: View {
     }
 }
 
-struct StockPlanSummary: View {
-    let plan: StockPlan
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack { Text(plan.symbol.isEmpty ? "市场计划" : plan.symbol).fontWeight(.semibold); Spacer(); Text(plan.status).font(.caption).foregroundStyle(.secondary) }
-            Text(plan.condition)
-            if !plan.position.isEmpty || !plan.stopLoss.isEmpty { Text("仓位：\(plan.position)    止损 / 失效：\(plan.stopLoss)").font(.caption).foregroundStyle(.secondary) }
-            if !plan.outcome.isEmpty { Text("验证结果：\(plan.outcome)").font(.callout) }
-            DisclosureGroup("计划历史版本（\(plan.versions?.count ?? 1)）") {
-                ForEach(plan.versions ?? [plan.snapshot]) { version in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("v\(version.version) · \(version.recordedAt)").font(.caption2)
-                        Text(version.condition).font(.caption)
-                        Text("仓位：\(version.position)；失效：\(version.stopLoss)").font(.caption)
-                        Text(version.reason).font(.caption).foregroundStyle(.secondary)
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
-                }
-            }
-        }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.08)))
-    }
-}
-struct StockReviewEditor: View {
-    @ObservedObject var service: StockService
-    let original: StockReview?
-    private let initial: StockReview
-    @State private var draft: StockReview
-    @State private var error: String?
-    @State private var cancel = false
-    @State private var query = ""
-    @Environment(\.dismiss) private var dismiss
-    init(service: StockService, initial: StockReview, original: StockReview?) {
-        self.service = service; self.original = original
-        var editing = initial
-        for i in editing.plans.indices { editing.plans[i].changeReason = "" }
-        self.initial = editing; _draft = State(initialValue: editing)
-    }
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack { Text("\(draft.date) · 每日复盘").font(.title2.bold()); Spacer() }.padding(22)
-            TabView {
-                Form {
-                    Section("市场观察") { TextEditor(text: $draft.summary).frame(minHeight: 120) }
-                    Section("我的执行") { TextEditor(text: $draft.execution).frame(minHeight: 100) }
-                    Section("经验与改进") { TextEditor(text: $draft.lesson).frame(minHeight: 100) }
-                    Section("我的情绪判断") { TextField("例如：分歧加大，等待确认", text: $draft.emotion) }
-                }.formStyle(.grouped).tabItem { Text("复盘正文") }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text("记录触发条件和风险边界，后续把执行结果补充在独立字段中。").foregroundStyle(.secondary)
-                        ForEach($draft.plans) { $plan in
-                            VStack(spacing: 12) {
-                                HStack { TextField("标的 / 市场", text: $plan.symbol); Picker("状态", selection: $plan.status) { ForEach(["待验证","已执行","未触发","偏离计划","已取消"], id: \.self) { Text($0).tag($0) } } }
-                                TextField("原计划：触发条件", text: $plan.condition, axis: .vertical).lineLimit(2...5)
-                                HStack { TextField("计划仓位", text: $plan.position); TextField("止损 / 失效条件", text: $plan.stopLoss) }
-                                TextField("修改原计划的原因（修改时必填）", text: Binding(get: { plan.changeReason ?? "" }, set: { plan.changeReason = $0 }), axis: .vertical).lineLimit(1...3)
-                                TextField("事后验证：实际执行、结果与偏差", text: $plan.outcome, axis: .vertical).lineLimit(2...5)
-                                HStack { Text("建立：\(plan.createdAt) · v\(plan.snapshot.version)").font(.caption2).foregroundStyle(.secondary); Spacer(); Button("取消计划") { plan.status = "已取消" } }
-                            }.textFieldStyle(.roundedBorder).padding(16)
-                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.08)))
-                        }
-                        Button("添加计划", systemImage: "plus") { draft.plans.append(StockPlan()) }
-                    }.padding(20)
-                }.tabItem { Text("交易计划与结果") }
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("当天成交自动关联。可搜索证券、日期或备注，补充跨日成交关联。").foregroundStyle(.secondary)
-                    TextField("搜索其他日期的成交", text: $query).textFieldStyle(.roundedBorder)
-                    List(service.data.trades.filter { $0.deletedAt == nil && (draft.tradeIDs.contains($0.id) || $0.date == draft.date || (!query.isEmpty && "\($0.date) \($0.instrument.symbol) \($0.instrument.name) \($0.note)".localizedCaseInsensitiveContains(query))) }.sorted { $0.sortKey > $1.sortKey }) { t in
-                        Toggle(isOn: Binding(get: { t.date == draft.date || draft.tradeIDs.contains(t.id) }, set: { yes in draft.tradeIDs.removeAll { $0 == t.id }; if yes { draft.tradeIDs.append(t.id) } })) {
-                            Text("\(t.date) \(t.instrument.name) \(t.action.title) \(t.quantity) × \(t.price)")
-                        }.disabled(t.date == draft.date)
-                    }
-                }.padding(20).tabItem { Text("关联成交") }
-
-            }
-            if let error { Text(error).foregroundStyle(.orange).padding(.horizontal, 20).textSelection(.enabled) }
-            HStack {
-                Button("取消") { if draft != initial { cancel = true } else { dismiss() } }.keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("保存复盘") {
-                    for i in draft.plans.indices where initial.plans.first(where: { $0.id == draft.plans[i].id }) != draft.plans[i] { draft.plans[i].updatedAt = StockDay.timestamp() }
-                    service.saveReview(draft, original: original) { ok in if ok { dismiss() } else { error = service.message } }
-                }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-            }.padding(20).disabled(service.busy)
-        }.frame(width: 820, height: 760).interactiveDismissDisabled()
-        .alert("放弃未保存的复盘？", isPresented: $cancel) { Button("继续编辑", role: .cancel) {}; Button("放弃", role: .destructive) { dismiss() } }
-    }
-}
-
 struct StockInlineReview: View {
     @ObservedObject var service: StockService
     let date: String
@@ -254,12 +136,11 @@ struct StockInlineReview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if draft != nil {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
                     field("市场观察", \.summary, prompt: "市场环境、板块变化、关键观察")
-                    field("我的执行", \.execution, prompt: "计划执行情况、偏差与原因")
                     field("经验与改进", \.lesson, prompt: "值得重复的操作、需要改变的行为")
-                    field("情绪判断", \.emotion, prompt: "记录当日情绪与决策状态")
                 }
+                optionalField("明日计划", \.tomorrowPlan, prompt: "明日关注标的、触发条件、仓位安排与风险边界")
             }
             if let error { Text(error).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
         }.onAppear { load() }
@@ -303,7 +184,25 @@ struct StockInlineReview: View {
                     if let draft { service.reviewDrafts[date] = (draft, original) }
                 }))
                     .font(.body).scrollContentBackground(.hidden).padding(4).disabled(service.busy)
-        }.frame(height: 112)
+            }.frame(height: 132)
+            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(.quaternary))
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08)))
+    }
+    private func optionalField(_ title: String, _ key: WritableKeyPath<StockReview, String?>, prompt: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.subheadline.weight(.medium))
+            ZStack(alignment: .topLeading) {
+                if (draft?[keyPath: key] ?? "").isEmpty { Text(prompt).font(.callout).foregroundStyle(.tertiary).padding(8).allowsHitTesting(false) }
+                TextEditor(text: Binding(get: { draft?[keyPath: key] ?? "" }, set: {
+                    draft?[keyPath: key] = $0; dirty = true; error = nil
+                    if let draft { service.reviewDrafts[date] = (draft, original) }
+                }))
+                    .font(.body).scrollContentBackground(.hidden).padding(4).disabled(service.busy)
+            }.frame(height: 132)
             .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(.quaternary))
         }.frame(maxWidth: .infinity, alignment: .leading)

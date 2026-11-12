@@ -12,7 +12,7 @@ struct StockImportRow: Identifiable {
     var id: Int { line }
 }
 enum StockCSV {
-    static let headers = ["记录ID","证券代码","证券名称","市场","类型","成交日期","成交时间","买卖方向","成交价格","成交数量","佣金","印花税","其他费用","成交编号","策略","备注","计划ID"]
+    static let headers = ["记录ID","证券代码","证券名称","市场","类型","成交日期","成交时间","买卖方向","成交价格","成交数量","佣金","印花税","其他费用","成交编号","策略","备注"]
     static func decode(_ data: Data) throws -> String {
         if let s = String(data: data, encoding: .utf8) { return s }
         let encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
@@ -107,7 +107,6 @@ enum StockCSV {
                 // Some brokers expose transfer fees separately from other fees.
                 trade.otherFees = StockDecimal.text(try StockDecimal.parse(trade.otherFees) + StockDecimal.parse(number(["过户费"])))
                 let identifier = get(["记录ID"]); if !identifier.isEmpty { trade.id = identifier }
-                let plan = get(["计划ID"]); trade.planID = plan.isEmpty ? nil : plan
                 // Preserve CSV row order when fills have the same execution timestamp.
                 trade.createdAt = StockDay.timestamp() + String(format: "-%08d", offset)
                 try trade.validate()
@@ -128,7 +127,7 @@ enum StockCSV {
     static func export(_ trades: [StockTrade]) -> String {
         var rows = [headers.map(quote).joined(separator: ",")]
         for t in trades.filter({ $0.deletedAt == nil }).sorted(by: { $0.sortKey < $1.sortKey }) {
-            let values = [t.id,t.instrument.symbol,t.instrument.name,t.instrument.exchange,t.instrument.kind,t.date,t.time,t.action.title,t.price,t.quantity,t.commission,t.tax,t.otherFees,t.brokerID,t.strategy,t.note,t.planID ?? ""]
+            let values = [t.id,t.instrument.symbol,t.instrument.name,t.instrument.exchange,t.instrument.kind,t.date,t.time,t.action.title,t.price,t.quantity,t.commission,t.tax,t.otherFees,t.brokerID,t.strategy,t.note]
             rows.append(values.map(quote).joined(separator: ","))
         }
         return "\u{feff}" + rows.joined(separator: "\r\n") + "\r\n"

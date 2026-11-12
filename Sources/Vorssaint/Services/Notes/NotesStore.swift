@@ -197,10 +197,26 @@ final class NotesStore: ObservableObject {
     func documentSignature(_ note: NoteDocument) -> String? {
         try? repository.signature(repository.url(for: note))
     }
-    func document(_ id: UUID) -> NoteDocument? {
-        guard let metadata = notes.first(where:{$0.id == id}) else { return nil }
-        do { return try queue.sync { try repository.read(repository.url(for:metadata)) } }
-        catch { saveError = error.localizedDescription; return nil }
+    func loadDocument(_ id: UUID, completion: @escaping (Result<NoteDocument, Error>) -> Void) {
+        guard !movingStorage, let metadata = notes.first(where: { $0.id == id }) else {
+            DispatchQueue.main.async {
+                completion(.failure(NSError(domain: "NotesStorage", code: 4, userInfo: [NSLocalizedDescriptionKey: "笔记不存在或存储正在迁移"])))
+            }
+            return
+        }
+        let repository = repository
+        let storage = storageGeneration
+        queue.async { [weak self] in
+            let result = Result { try repository.read(repository.url(for: metadata)) }
+            DispatchQueue.main.async {
+                guard let self, storage == self.storageGeneration, !self.movingStorage else {
+                    completion(.failure(NSError(domain: "NotesStorage", code: 5, userInfo: [NSLocalizedDescriptionKey: "笔记目录已更改，请重新打开笔记"])))
+                    return
+                }
+                if case .failure(let error) = result { self.saveError = error.localizedDescription }
+                completion(result)
+            }
+        }
     }
     @discardableResult
     func addNote(_ title: String, type: String = "markdown") -> NoteDocument? {

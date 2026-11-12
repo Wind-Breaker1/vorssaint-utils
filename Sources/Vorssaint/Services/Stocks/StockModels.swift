@@ -2,6 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 import Foundation
 
+struct StockRuleBook: Codable, Equatable {
+    var schemaVersion = 2
+    var tradingDiscipline: String?
+    static var defaults: StockRuleBook { StockRuleBook() }
+}
+
 struct StockError: LocalizedError {
     let message: String
     init(_ message: String) { self.message = message }
@@ -87,7 +93,6 @@ struct StockTrade: Codable, Equatable, Identifiable {
     var brokerID: String = ""
     var strategy: String = ""
     var note: String = ""
-    var planID: String? = nil
     var createdAt: String = StockDay.timestamp()
     var updatedAt: String = StockDay.timestamp()
     var deletedAt: String? = nil
@@ -107,48 +112,25 @@ struct StockTrade: Codable, Equatable, Identifiable {
     }
 }
 
-struct StockPlan: Codable, Equatable, Identifiable {
-    var id = UUID().uuidString
-    var symbol = ""
-    var condition = ""
-    var position = ""
-    var stopLoss = ""
-    var status = "待验证"
-    var outcome = ""
-    var createdAt = StockDay.timestamp()
-    var updatedAt = StockDay.timestamp()
-    var versions: [StockPlanVersion]? = nil
-    var changeReason: String? = nil
-}
 struct StockReview: Codable, Equatable, Identifiable {
     var date: String
     var id: String { date }
     var summary = ""
-    var execution = ""
     var lesson = ""
-    var emotion = ""
-    var plans: [StockPlan] = []
-    var tradeIDs: [String] = []
+    var tomorrowPlan: String? = nil
     var updatedAt = StockDay.timestamp()
-    var journal: StockReviewJournal? = nil
+    var hasUserContent: Bool {
+        [summary, lesson, tomorrowPlan ?? ""]
+            .contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
 }
 struct StockQuote: Codable, Equatable, Identifiable {
     var code: String
     var name: String
     var price: Double
     var change: Double
-    var amount: Double
     var date: String
     var id: String { code }
-}
-struct StockBar: Codable, Equatable, Identifiable {
-    var date: String
-    var open: Double
-    var close: Double
-    var high: Double
-    var low: Double
-    var volume: Double
-    var id: String { date }
 }
 struct StockLimit: Codable, Equatable, Identifiable {
     var code: String
@@ -163,51 +145,35 @@ struct StockLimit: Codable, Equatable, Identifiable {
 struct StockSector: Codable, Equatable, Identifiable {
     var code: String
     var name: String
-    var kind: String
     var change: Double
-    var amount: Double
-    var rank: Int
-    var id: String { kind + code }
+    var id: String { code }
 }
 struct StockSource: Codable, Equatable, Identifiable {
     var name: String
-    var url: String
-    var fetchedAt: String = StockDay.timestamp()
     var status: String
-    var detail: String
     var id: String { name }
 }
 struct StockMarketSnapshot: Codable, Equatable, Identifiable {
     var date: String
     var id: String { date }
-    var fetchedAt = StockDay.timestamp()
     var indices: [StockQuote] = []
-    var quotes: [StockQuote] = []
     var limits: [StockLimit] = []
     var sectors: [StockSector] = []
     var metrics: [String: Double] = [:]
     var sources: [StockSource] = []
     var industryDecliners: [StockSector]? = nil
     var previousTradingDay: String? = nil
-    var formulaVersion = 1
-
 }
 struct StockYear<T: Codable>: Codable {
     var schemaVersion = 1
     var year: Int
     var entries: [T]
 }
-struct StockChartRecord: Codable {
-    var code: String
-    var bars: [StockBar]
-}
 struct StockDataset {
     var rules = StockRuleBook.defaults
-    var charts: [String: [StockBar]] = [:]
     var trades: [StockTrade] = []
     var reviews: [StockReview] = []
     var snapshots: [StockMarketSnapshot] = []
-    var watchlist: [StockInstrument] = []
     var revision = ""
 }
 

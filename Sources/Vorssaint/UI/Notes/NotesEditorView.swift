@@ -52,6 +52,7 @@ private struct NoteWebEditor: NSViewRepresentable {
         private var saveGeneration = 0
         private var loadedSignature: String?
         private var loadGeneration = 0
+        private var documentLoadGeneration = 0
         init(note: NoteDocument) {
             self.note = note
             super.init()
@@ -64,11 +65,10 @@ private struct NoteWebEditor: NSViewRepresentable {
         deinit { saveWork?.cancel(); NotificationCenter.default.removeObserver(self) }
         @objc private func openDocument(_ notification: Notification) {
             guard let target = notification.object as? NoteDocument else { return }
-            save()
-            guard !dirty else { return }
-            guard let document = NotesStore.shared.document(target.id) else { return }
-            note = document
-            if ready { load() }
+            save(wait: false) { [weak self] saved in
+                guard saved else { return }
+                self?.loadDocument(target.id)
+            }
         }
         private var ready = false
         @objc private func activated() { NotesStore.shared.refreshFromDisk() }
@@ -77,30 +77,27 @@ private struct NoteWebEditor: NSViewRepresentable {
             let store = NotesStore.shared
             call("window.notesApp.catalog(notes)", ["notes": catalog])
             if !store.notes.contains(where: { $0.id == note.id }) {
-                if let next = store.notes.first, let document = store.document(next.id) { note = document; load() }
+                if let next = store.notes.first { loadDocument(next.id) }
                 else { call("window.notesApp.clear()") }
                 return
             }
             guard store.documentSignature(note) != loadedSignature else { return }
-            guard let document = store.document(note.id) else { return }
-            let changed = document.title != note.title || document.body != note.body || document.tags != note.tags || document.properties != note.properties || document.type != note.type
-            note = document
-            if changed { load() }
+            loadDocument(note.id, onlyIfChanged: true)
         }
         @objc private func flush(_ notification: Notification) {
             save()
             if dirty { (notification.object as? NotesFlushRequest)?.failed = true }
         }
-        func save(wait: Bool = true) {
+        func save(wait: Bool = true, completion: @escaping (Bool) -> Void = { _ in }) {
             saveWork?.cancel(); saveWork = nil
-            guard dirty else { return }
+            guard dirty else { completion(true); return }
             saveGeneration += 1
             let generation = saveGeneration
             let savedID = note.id.uuidString
             let savedFiles = note.type == "excalidraw" ? (((try? JSONSerialization.jsonObject(with: Data(note.body.utf8))) as? [String: Any])?["files"] as? [String: Any] ?? [:]) : [:]
             note.updatedAt = Date()
             NotesStore.shared.updateNote(note, wait: wait) { [weak self] success in
-                guard let self, generation == self.saveGeneration else { return }
+                guard let self, generation == self.saveGeneration else { completion(false); return }
                 if success {
                     self.loadedSignature = NotesStore.shared.documentSignature(self.note)
                     self.call("window.notesApp.saved(id, files)", ["id": savedID, "files": Array(savedFiles.keys)])
@@ -109,6 +106,7 @@ private struct NoteWebEditor: NSViewRepresentable {
                 } else {
                     self.call("window.notesApp.status(text)", ["text": NotesStore.shared.saveError ?? "保存失败"])
                 }
+                completion(success)
             }
         }
         func scheduleSave() {
@@ -125,17 +123,50 @@ private struct NoteWebEditor: NSViewRepresentable {
             NotesStore.shared.notes.map { ["id": $0.id.uuidString, "title": $0.title, "body": $0.body, "type": $0.type, "tags": $0.tags, "outgoingIDs": NotesStore.shared.outgoing($0.id)] }
         }
         func load(heading: String = "", editing: Bool = false) {
+            documentLoadGeneration += 1
+            let documentGeneration = documentLoadGeneration
             loadedSignature = NotesStore.shared.documentSignature(note)
             loadGeneration += 1
             let generation = loadGeneration
-            let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
-            guard let data = try? encoder.encode(note), let value = try? JSONSerialization.jsonObject(with: data) else { return }
-            let arguments: [String: Any] = ["note": value, "heading": heading, "notes": catalog, "editing": editing]
-            Task { @MainActor [weak self] in
-                guard let self, generation == self.loadGeneration, let web = self.web else { return }
-                do {
-                    _ = try await web.callAsyncJavaScript("window.notesApp.load(note, notes, heading, editing); requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'}))", arguments: arguments, in: nil, contentWorld: .page)
-                } catch { NSLog("Note editor: %@", error.localizedDescription) }
+            let document = note
+            let notes = catalog
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let encoded: Result<Any, Error> = Result {
+                    let encoder = JSONEncoder()
+                    encoder.dateEncodingStrategy = .iso8601
+                    return try JSONSerialization.jsonObject(with: encoder.encode(document))
+                }
+                DispatchQueue.main.async {
+                    guard let self, generation == self.loadGeneration,
+                          documentGeneration == self.documentLoadGeneration, let web = self.web else { return }
+                    guard case .success(let value) = encoded else {
+                        if case .failure(let error) = encoded { self.status(error) }
+                        return
+                    }
+                    let arguments: [String: Any] = ["note": value, "heading": heading, "notes": notes, "editing": editing]
+                    Task { @MainActor in
+                        do {
+                            _ = try await web.callAsyncJavaScript("window.notesApp.load(note, notes, heading, editing); requestAnimationFrame(() => window.webkit.messageHandlers.notes.postMessage({type: 'presented'}))", arguments: arguments, in: nil, contentWorld: .page)
+                        } catch { NSLog("Note editor: %@", error.localizedDescription) }
+                    }
+                }
+            }
+        }
+        private func loadDocument(_ id: UUID, heading: String = "", onlyIfChanged: Bool = false) {
+            documentLoadGeneration += 1
+            let generation = documentLoadGeneration
+            NotesStore.shared.loadDocument(id) { [weak self] result in
+                guard let self, generation == self.documentLoadGeneration else { return }
+                switch result {
+                case .success(let document):
+                    let changed = document.title != self.note.title || document.body != self.note.body
+                        || document.tags != self.note.tags || document.properties != self.note.properties
+                        || document.type != self.note.type
+                    guard !onlyIfChanged || changed else { return }
+                    self.note = document
+                    if self.ready { self.load(heading: heading) }
+                case .failure(let error): self.status(error)
+                }
             }
         }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
@@ -179,7 +210,7 @@ private struct NoteWebEditor: NSViewRepresentable {
                 let store = NotesStore.shared
                 store.removeNote(note)
                 if let error = store.saveError { call("window.notesApp.status(text)", ["text": error]); return }
-                if let next = store.notes.first, let document = store.document(next.id) { note = document; load() }
+                if let next = store.notes.first { loadDocument(next.id) }
                 else { call("window.notesApp.clear()") }
             case "createNote":
                 save()
@@ -220,10 +251,12 @@ private struct NoteWebEditor: NSViewRepresentable {
         func openNote(_ identifier: String) {
             let parts = identifier.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
             guard let first = parts.first, let id = UUID(uuidString: String(first)) else { return }
-            save()
-            guard !dirty else { return }
-            guard let target = NotesStore.shared.notes.first(where: { $0.id == id }) else { call("window.notesApp.status(text)", ["text": "目标笔记不存在或已删除"]); return }
-            guard let document = NotesStore.shared.document(target.id) else { return }; note = document; load(heading: parts.count == 2 ? String(parts[1]) : "")
+            guard NotesStore.shared.notes.contains(where: { $0.id == id }) else { call("window.notesApp.status(text)", ["text": "目标笔记不存在或已删除"]); return }
+            let heading = parts.count == 2 ? String(parts[1]) : ""
+            save(wait: false) { [weak self] saved in
+                guard saved else { return }
+                self?.loadDocument(id, heading: heading)
+            }
         }
         func attachment(_ data: Data, _ name: String) throws -> String {
             let ext = (name as NSString).pathExtension.lowercased()

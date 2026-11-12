@@ -131,5 +131,4 @@ enum SystemDataProbeRegistry {
     static let projectTargets = Set(["node_modules", ".build", "Pods", "DerivedData", ".next", ".nuxt", ".svelte-kit", ".astro", ".angular", ".turbo", ".parcel-cache", ".expo"])
 
     static let snapshotCommand = "/usr/bin/tmutil"
-    static let simulatorCommand = "/usr/bin/xcrun"
 }

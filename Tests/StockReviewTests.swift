@@ -11,13 +11,30 @@ enum StockReviewTests {
             do { try action(); suite.expect(false, label) } catch { suite.expect(true, label) }
         }
         do {
-            let legacyReview = StockReview(date: "2026-11-06", summary: "保留复盘正文", plans: [StockPlan(condition: "保留计划")])
+            let legacyReview = StockReview(date: "2026-11-06", summary: "保留复盘正文")
             var legacyJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacyReview)) as! [String: Any]
-            legacyJSON["attachments"] = ["attachments/2026/old.png"]
+            legacyJSON["plans"] = [["condition": "已移除的计划"]]
+            legacyJSON["journal"] = ["assessments": [["kind": "已移除的评价"]]]
             let decodedReview = try JSONDecoder().decode(StockReview.self, from: JSONSerialization.data(withJSONObject: legacyJSON))
-            suite.expect(decodedReview == legacyReview, "legacy review attachment field does not affect journal or plans")
+            suite.expect(decodedReview == legacyReview, "removed review features do not affect current review data")
             let savedJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(decodedReview)) as! [String: Any]
-            suite.expect(savedJSON["attachments"] == nil, "saved reviews no longer contain attachment configuration")
+            suite.expect(savedJSON["plans"] == nil && savedJSON["journal"] == nil, "saved reviews contain only current fields")
+            let blankReview = StockReview(date: "2026-11-06")
+            var plannedReview = blankReview
+            plannedReview.tomorrowPlan = "观察开盘量能"
+            suite.expect(!blankReview.hasUserContent && plannedReview.hasUserContent, "tomorrow plan is treated as user-authored review content")
+            let monday = StockDay.date("2026-11-09")!
+            suite.expect(StockMarketClient.isTradingHours(now: monday.addingTimeInterval(9 * 3600 + 30 * 60)), "A-share session opens at 09:30 China time")
+            suite.expect(StockMarketClient.isTradingHours(now: monday.addingTimeInterval(11 * 3600 + 30 * 60)), "A-share morning session includes 11:30")
+            suite.expect(!StockMarketClient.isTradingHours(now: monday.addingTimeInterval(11 * 3600 + 31 * 60)), "A-share lunch break is outside trading hours")
+            suite.expect(StockMarketClient.isTradingHours(now: monday.addingTimeInterval(13 * 3600)), "A-share afternoon session opens at 13:00")
+            suite.expect(StockMarketClient.isTradingHours(now: monday.addingTimeInterval(15 * 3600)), "A-share afternoon session includes 15:00")
+            suite.expect(!StockMarketClient.isTradingHours(now: monday.addingTimeInterval(15 * 3600 + 60)), "A-share session closes after 15:00")
+            suite.expect(StockMarketClient.isCurrentTradingDay(now: monday.addingTimeInterval(10 * 3600), quoteDate: "2026-11-09"), "current index quote confirms an open weekday")
+            suite.expect(!StockMarketClient.isCurrentTradingDay(now: monday.addingTimeInterval(10 * 3600), quoteDate: "2026-11-06"), "stale index quote prevents collection on a weekday market holiday")
+            let sunday = StockDay.date("2026-11-08")!
+            suite.expect(!StockMarketClient.isTradingHours(now: sunday.addingTimeInterval(10 * 3600)), "weekend is outside trading hours")
+            suite.expect(!StockMarketClient.isCurrentTradingDay(now: sunday.addingTimeInterval(10 * 3600), quoteDate: "2026-11-08"), "weekend is never treated as a trading day")
             let suggestions: [String: Any] = ["QuotationCodeTable": ["Status": 0, "Data": [
                 ["Code": "600519", "Name": "贵州茅台", "MktNum": "1"],
                 ["Code": "510300", "Name": "沪深300ETF", "MktNum": "1"],
@@ -27,6 +44,7 @@ enum StockReviewTests {
             let suggested = try StockMarketClient.parseInstruments(suggestions)
             suite.expect(suggested.map(\.symbol) == ["600519", "510300"], "name search excludes unsupported securities and duplicates")
             suite.expect(suggested.last?.kind == "etf", "name search infers ETF kind")
+            suite.expect(StockMarketClient.sectorURL().contains("pz=5") && StockMarketClient.sectorURL().contains("fs=m:90+t:2"), "market collection requests only five industry sectors")
             let stock = StockInstrument(symbol: "600519", name: "测试证券")
             var buy = StockTrade(instrument: stock, date: "2025-12-30", price: "10", quantity: "100", commission: "5")
             var add = StockTrade(instrument: stock, date: "2026-01-05", price: "20", quantity: "100", commission: "5")
@@ -54,6 +72,19 @@ enum StockReviewTests {
             let repo = try StockRepository(root: root.appendingPathComponent("store"))
             var data = try repo.load()
             suite.expect(data.trades.isEmpty, "empty directory has no sample trades")
+            data.rules.tradingDiscipline = "先确认风险边界"
+            data = try repo.saveRules(data.rules, expected: data.revision)
+            let legacyRules = try JSONSerialization.data(withJSONObject: [
+                "schemaVersion": 2,
+                "tradingDiscipline": "先确认风险边界",
+                "rules": [["id": "retired-rule"]],
+                "reasonTags": [],
+                "emotions": [],
+                "mistakes": []
+            ])
+            try legacyRules.write(to: repo.root.appendingPathComponent("rules.json"), options: .atomic)
+            data = try repo.load()
+            suite.expect(data.rules.tradingDiscipline == "先确认风险边界", "current discipline loads from the existing rules file")
             let blank = data.revision
             var numbered = buy; numbered.brokerID = "EXEC-1"
             var numberedAgain = numbered; numberedAgain.id = UUID().uuidString
@@ -73,14 +104,6 @@ enum StockReviewTests {
             add.date = "2025-12-31"
             data = try repo.saveTrades([add], expected: data.revision)
             suite.expect(data.trades.count == 3 && data.trades.first(where: { $0.id == add.id })?.date == "2025-12-31", "editing a trade across years moves it once")
-            let bar1 = StockBar(date:"2025-12-30",open:10,close:11,high:12,low:9,volume:100)
-            let bar2 = StockBar(date:"2026-01-05",open:11,close:12,high:13,low:10,volume:200)
-            data = try repo.saveBars(["sh600519":[bar1,bar2]])
-            data = try repo.saveBars(["sh600519":[bar2]])
-            suite.expect(data.charts["sh600519"]?.count == 2, "daily K lines merge by date without duplicate snapshot storage")
-            suite.expect(FileManager.default.fileExists(atPath: repo.root.appendingPathComponent("charts/2025.json").path), "offline chart history is grouped by year")
-            let invalidBar = StockBar(date:"2026-01-05",open:11,close:12,high:10,low:13,volume:200)
-            expectFailure("invalid chart does not replace valid history") { _ = try repo.saveBars(["sh600519":[invalidBar]]) }
             data = try repo.load()
             let oldRevision = data.revision
             let external = try StockRepository(root: repo.root)
@@ -88,22 +111,24 @@ enum StockReviewTests {
             _ = try external.saveTrades([change], expected: oldRevision)
             expectFailure("external edits protected") { _ = try repo.saveTrades([buy], expected: oldRevision) }
             data = try repo.load()
-            var review = StockReview(date: "2026-01-06", summary: "我的原始判断", plans: [StockPlan(condition: "成交额放大", outcome: "次日核对")], tradeIDs: [sell.id])
+            var review = StockReview(date: "2026-01-06", summary: "我的原始判断")
             data = try repo.saveReview(review, expected: data.revision)
-            let snapshot = StockMarketSnapshot(date: "2026-01-06", metrics: ["涨停家数":12], sources: [StockSource(name:"涨停池",url:"https://example.com",status:"ok",detail:"测试")])
+            data = try repo.saveReview(StockReview(date: "2026-01-07"), expected: data.revision)
+            suite.expect(data.reviews.count == 1, "empty reviews are not persisted")
+            let snapshot = StockMarketSnapshot(date: "2026-01-06", metrics: ["涨停家数":12], sources: [StockSource(name:"涨停池",status:"ok")])
             data = try repo.saveSnapshot(snapshot)
-            suite.expect(data.reviews.first?.summary == "我的原始判断" && data.reviews.first?.plans.count == 1, "automatic market updates preserve review and plan")
-            data = try repo.saveSnapshot(StockMarketSnapshot(date:"2026-01-06", sources: [StockSource(name:"涨停池",url:"https://example.com",status:"missing",detail:"断网")]))
-            suite.expect(data.snapshots[0].metrics["涨停家数"] == 12 && data.snapshots[0].sources[0].detail.contains("保留"), "failed retry retains prior data with provenance")
+            suite.expect(data.reviews.first?.summary == "我的原始判断", "automatic market updates preserve review text")
+            data = try repo.saveSnapshot(StockMarketSnapshot(date:"2026-01-06", sources: [StockSource(name:"涨停池",status:"missing")]))
+            suite.expect(data.snapshots[0].metrics["涨停家数"] == 12 && data.snapshots[0].metrics["最高连板"] == nil && data.snapshots[0].sources[0].status == "missing", "failed retry retains required readings and prunes retired metrics")
             _ = try repo.saveSnapshot(StockMarketSnapshot(date:"2026-01-07"))
             var declineSnapshot = StockMarketSnapshot(date: "2026-01-07")
-            declineSnapshot.industryDecliners = [StockSector(code: "BKTEST", name: "测试行业", kind: "行业", change: -3, amount: 100, rank: 1)]
+            declineSnapshot.industryDecliners = [StockSector(code: "BKTEST", name: "测试行业", change: -3)]
             _ = try repo.saveSnapshot(declineSnapshot)
             let afterFailedRefresh = try repo.saveSnapshot(StockMarketSnapshot(date: "2026-01-07"))
             suite.expect(afterFailedRefresh.snapshots.first { $0.date == "2026-01-07" }?.industryDecliners == declineSnapshot.industryDecliners, "failed refresh preserves saved declining sectors")
 
             data = try repo.load()
-            suite.expect(data.reviews.count == 2, "market collection creates a daily review draft")
+            suite.expect(data.reviews.count == 1, "market collection does not create an empty review record")
             let destination = root.appendingPathComponent("migrated")
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
             let migrated = try repo.migrate(to: destination)
